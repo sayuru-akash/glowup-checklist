@@ -9,7 +9,7 @@ if (!connectionString) {
 
 const sql = neon(connectionString);
 
-await sql.query(
+const statements = [
   `
   create table if not exists glow_users (
     id text primary key,
@@ -18,16 +18,20 @@ await sql.query(
     picture text,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
-  );
-
+  )
+  `,
+  `
   create table if not exists glow_states (
     user_id text primary key references glow_users(id) on delete cascade,
     state jsonb not null,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
-  );
-  `,
-  []
-);
+  )
+  `
+];
+
+for (const statement of statements) {
+  await sql.query(statement, []);
+}
 
 console.log("Database schema ready.");

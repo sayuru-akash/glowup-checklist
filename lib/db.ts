@@ -1,7 +1,8 @@
 import { neon } from "@neondatabase/serverless";
 import type { StoredAppState, UserProfile } from "@/lib/types";
 
-const schema = `
+const schemaStatements = [
+  `
 create table if not exists glow_users (
   id text primary key,
   email text not null,
@@ -9,15 +10,17 @@ create table if not exists glow_users (
   picture text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
-);
-
+)
+`,
+  `
 create table if not exists glow_states (
   user_id text primary key references glow_users(id) on delete cascade,
   state jsonb not null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
-);
-`;
+)
+`
+];
 
 let sqlClient: ReturnType<typeof neon> | null = null;
 
@@ -36,7 +39,10 @@ export function getSql() {
 }
 
 export async function ensureSchema() {
-  await getSql().query(schema, []);
+  const sql = getSql();
+  for (const statement of schemaStatements) {
+    await sql.query(statement, []);
+  }
 }
 
 export async function upsertUser(profile: UserProfile) {
