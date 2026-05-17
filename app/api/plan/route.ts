@@ -1,0 +1,183 @@
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { buildThemeFromVibe } from "@/lib/theme";
+import type { WeeklyPlan } from "@/lib/types";
+
+const BodySchema = z.object({
+  vibe: z.enum(["soft-pop", "clean-reset", "main-character", "study-core", "power-mode"]),
+  ageRange: z.string().max(80).default(""),
+  persona: z.string().max(180).default(""),
+  visualIdentity: z.string().max(240).default(""),
+  artStyle: z.string().max(120).default(""),
+  currentFocus: z.string().max(160).default(""),
+  schedule: z.string().max(160).default(""),
+  energy: z.string().max(160).default(""),
+  style: z.string().max(160).default(""),
+  blockers: z.string().max(220).default(""),
+  weeklyWin: z.string().max(180).default(""),
+  intensity: z.enum(["soft", "balanced", "ambitious"]).default("balanced")
+});
+
+export async function POST(request: Request) {
+  const parsed = BodySchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Setup answers are incomplete." }, { status: 400 });
+  }
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return NextResponse.json({ error: "Gemini API key is not configured." }, { status: 503 });
+  }
+
+  try {
+    const model = process.env.GEMINI_TEXT_MODEL || "gemini-3-flash-preview";
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: buildPlannerPrompt(parsed.data) }]
+          }
+        ],
+        generationConfig: {
+          temperature: 0.8,
+          responseMimeType: "application/json"
+        }
+      })
+    });
+
+    if (!response.ok) {
+      return NextResponse.json(
+        { error: "Gemini plan request failed.", detail: await readGeminiError(response) },
+        { status: 502 }
+      );
+    }
+
+    const data = await response.json();
+    const text = data?.candidates?.[0]?.content?.parts?.find((part: { text?: string }) => part.text)?.text;
+    if (!text) {
+      return NextResponse.json({ error: "Gemini returned no plan text." }, { status: 502 });
+    }
+
+    const generated = normalizePlan(JSON.parse(text), parsed.data);
+    return NextResponse.json({ plan: generated, source: "gemini" });
+  } catch (error) {
+    return NextResponse.json(
+      { error: "Gemini plan output could not be parsed.", detail: error instanceof Error ? error.message : "Unknown error" },
+      { status: 502 }
+    );
+  }
+}
+
+function buildPlannerPrompt(input: z.infer<typeof BodySchema>) {
+  return `Return only valid JSON for a weekly glow-up checklist web app.
+Use compact, high-quality output. No markdown.
+User setup:
+- vibe: ${input.vibe}
+- audience/age: ${input.ageRange || "broad"}
+- personal vibe: ${input.persona || "not specified"}
+- character/avatar direction: ${input.visualIdentity || "stylized inclusive character, not a real-person copy"}
+- preferred artwork style: ${input.artStyle || "polished modern cartoon/anime-inspired planner art"}
+- current focus: ${input.currentFocus || "healthy basics"}
+- schedule: ${input.schedule || "busy"}
+- energy: ${input.energy || "medium"}
+- visual style: ${input.style || "fun, clean, modern"}
+- blockers: ${input.blockers || "consistency"}
+- weekly win: ${input.weeklyWin || "feel more put together"}
+- intensity: ${input.intensity}
+
+JSON shape:
+{
+  "title": "short title",
+  "subtitle": "short subtitle",
+  "note": "short note about user's schedule",
+  "weeklyMantra": "one sentence",
+  "themeName": "2-4 words",
+  "days": [
+    {
+      "label": "Mon",
+      "focus": "2-5 words",
+      "affirmation": "short sentence",
+      "tasks": [
+        {"label":"specific task under 8 words","detail":"optional detail under 12 words","category":"hydration|skin|movement|food|mind|style|study|sleep|social","minutes":5}
+      ]
+    }
+  ],
+  "imagePrompt": "single polished image prompt under 95 words for the visual vibe artwork"
+}
+Rules: exactly 7 days Mon-Sun. ${input.intensity === "soft" ? "5" : input.intensity === "ambitious" ? "7" : "6"} tasks per day. Make tasks practical, varied, inclusive, low-friction, and editable. Avoid medical claims, shame, and perfectionism.`;
+}
+
+function normalizePlan(raw: Partial<WeeklyPlan> & { themeName?: string }, input: z.infer<typeof BodySchema>): WeeklyPlan {
+  if (!Array.isArray(raw.days) || raw.days.length !== 7) {
+    throw new Error("Plan must include exactly 7 days.");
+  }
+
+  const theme = buildThemeFromVibe(input.vibe, raw.themeName || raw.title || "Glow Week");
+  const taskTarget = input.intensity === "soft" ? 5 : input.intensity === "ambitious" ? 7 : 6;
+
+  return {
+    theme,
+    title: requireString(raw.title, "title", 80),
+    subtitle: requireString(raw.subtitle, "subtitle", 120),
+    note: requireString(raw.note, "note", 140),
+    weeklyMantra: requireString(raw.weeklyMantra, "weeklyMantra", 180),
+    imagePrompt: requireString(raw.imagePrompt, "imagePrompt", 700),
+    days: raw.days.map((day, dayIndex) => {
+      if (!Array.isArray(day.tasks) || day.tasks.length < taskTarget) {
+        throw new Error(`Day ${dayIndex + 1} must include at least ${taskTarget} tasks.`);
+      }
+
+      return {
+      id: `day-${dayIndex}`,
+      label: requireString(day.label, `days.${dayIndex}.label`, 8),
+      focus: requireString(day.focus, `days.${dayIndex}.focus`, 48),
+      affirmation: requireString(day.affirmation, `days.${dayIndex}.affirmation`, 100),
+      tasks: day.tasks.slice(0, 8).map((task, taskIndex) => ({
+        id: `day-${dayIndex}-task-${taskIndex}`,
+        label: requireString(task.label, `days.${dayIndex}.tasks.${taskIndex}.label`, 90),
+        detail: typeof task.detail === "string" ? task.detail.slice(0, 90) : "",
+        category: requireCategory(task.category, `days.${dayIndex}.tasks.${taskIndex}.category`),
+        minutes: typeof task.minutes === "number" ? Math.max(1, Math.min(60, Math.round(task.minutes))) : 5,
+        completed: false
+      }))
+    };
+    })
+  };
+}
+
+function requireString(value: unknown, field: string, maxLength: number) {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new Error(`Missing ${field}.`);
+  }
+
+  return value.trim().slice(0, maxLength);
+}
+
+function requireCategory(value: unknown, field: string): WeeklyPlan["days"][number]["tasks"][number]["category"] {
+  if (
+    typeof value === "string" &&
+    ["hydration", "skin", "movement", "food", "mind", "style", "study", "sleep", "social"].includes(value)
+  ) {
+    return value as WeeklyPlan["days"][number]["tasks"][number]["category"];
+  }
+
+  throw new Error(`Invalid ${field}.`);
+}
+
+async function readGeminiError(response: Response) {
+  const body = await response.text().catch(() => "");
+  if (!body) return `HTTP ${response.status}`;
+
+  try {
+    const parsed = JSON.parse(body) as { error?: { message?: string; status?: string } };
+    return parsed.error?.message || parsed.error?.status || `HTTP ${response.status}`;
+  } catch {
+    return body.slice(0, 240);
+  }
+}

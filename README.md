@@ -1,0 +1,77 @@
+# GlowUp Checklist
+
+An AI-backed weekly glow-up checklist builder with Google sign-in, adaptive vibe setup, editable tasks, persistent account state, and generated theme artwork.
+
+## Local setup
+
+```bash
+npm install
+cp .env.example .env.local
+npm run dev
+```
+
+Open `http://localhost:3000`.
+
+Production paths use:
+
+- Google Identity Services credential flow
+- server-side Google ID token verification
+- signed HTTP-only session cookie
+- Google AI `generateContent` for weekly plans
+- Google AI image generation for vibe artwork
+- Postgres persistence for signed-in account state
+
+## Google configuration
+
+Create a Google OAuth web client in Google Cloud Console and set both:
+
+```bash
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+```
+
+For local testing, add `http://localhost` and `http://localhost:3000` as Authorized JavaScript origins.
+
+## Google AI configuration
+
+Create a Google AI API key in Google AI Studio:
+
+```bash
+GEMINI_API_KEY=...
+GEMINI_TEXT_MODEL=gemini-3-flash-preview
+GEMINI_IMAGE_MODEL=gemini-2.5-flash-image
+```
+
+`GEMINI_TEXT_MODEL` and `GEMINI_IMAGE_MODEL` are intentionally configurable because Google preview models change over time. The app does not silently fall back to fake generation when provider calls fail.
+
+## Database
+
+Use a separate Postgres database for this app. For Vercel, provision Neon through Vercel Marketplace, then set or pull:
+
+```bash
+DATABASE_URL=postgresql://...
+```
+
+Initialize the schema:
+
+```bash
+npm run db:init
+```
+
+The schema creates `glow_users` and `glow_states` only.
+
+## Vercel
+
+Set these environment variables in Vercel for Production, Preview, and Development:
+
+```bash
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_ID=
+AUTH_SECRET=
+GEMINI_API_KEY=
+GEMINI_TEXT_MODEL=gemini-3-flash-preview
+GEMINI_IMAGE_MODEL=gemini-2.5-flash-image
+DATABASE_URL=
+```
+
+After deployment, add the deployed Vercel origin to the Google OAuth web client's Authorized JavaScript origins.
