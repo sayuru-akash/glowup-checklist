@@ -32,6 +32,18 @@ textarea {
   font: inherit;
 }
 
+button,
+input,
+textarea,
+select {
+  max-width: 100%;
+}
+
+button svg,
+a svg {
+  flex: 0 0 auto;
+}
+
 textarea {
   resize: vertical;
 }
@@ -162,8 +174,9 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
   max-width: 1440px;
-  margin: 0 auto 22px;
+  margin: 0 auto clamp(22px, 3vw, 30px);
 }
 
 .auth-grid,
@@ -177,9 +190,16 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
   font-size: 1.05rem;
   font-weight: 850;
   letter-spacing: 0;
+}
+
+.brand-lockup > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .brand-mark,
@@ -214,8 +234,11 @@ select:focus-visible {
 
 .top-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 10px;
+  min-width: 0;
 }
 
 .status-chip {
@@ -304,12 +327,18 @@ select:focus-visible {
   align-items: center;
   justify-content: center;
   gap: 9px;
+  max-width: 100%;
+  min-width: 0;
   min-height: 46px;
+  padding-top: 8px;
+  padding-bottom: 8px;
   border-radius: 999px;
   font-size: 0.94rem;
   font-weight: 900;
   letter-spacing: 0;
-  white-space: nowrap;
+  line-height: 1.15;
+  text-align: center;
+  white-space: normal;
 }
 
 .primary-button {
@@ -628,8 +657,8 @@ select:focus-visible {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: minmax(260px, 0.75fr) minmax(420px, 1.25fr) minmax(230px, 0.55fr);
-  gap: 18px;
+  grid-template-columns: minmax(280px, 0.78fr) minmax(440px, 1.22fr) minmax(260px, 0.58fr);
+  gap: clamp(18px, 2vw, 28px);
   max-width: 1440px;
   margin: 0 auto;
 }
@@ -644,14 +673,15 @@ select:focus-visible {
   display: flex;
   min-height: calc(100vh - 112px);
   flex-direction: column;
-  gap: 16px;
-  padding: 18px;
+  gap: 18px;
+  padding: clamp(18px, 2vw, 24px);
 }
 
 .profile-row {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
 }
 
 .profile-row p,
@@ -661,12 +691,14 @@ select:focus-visible {
 
 .profile-row p {
   font-weight: 950;
+  overflow-wrap: anywhere;
 }
 
 .profile-row span {
   color: var(--muted);
   font-size: 0.82rem;
   font-weight: 800;
+  overflow-wrap: anywhere;
 }
 
 .avatar {
@@ -789,9 +821,9 @@ select:focus-visible {
   display: grid;
   grid-template-columns: 86px 1fr;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
   border-radius: 24px;
-  padding: 14px;
+  padding: 16px;
   background: var(--surface);
 }
 
@@ -834,7 +866,7 @@ blockquote textarea {
 .plan-title-input {
   font-size: 1.28rem;
   font-weight: 950;
-  line-height: 1.05;
+  line-height: 1.12;
 }
 
 .plan-subtitle-input {
@@ -859,7 +891,7 @@ blockquote {
   gap: 10px;
   margin: 0;
   border-radius: 24px;
-  padding: 16px;
+  padding: 18px;
   background: color-mix(in srgb, var(--highlight) 52%, var(--surface));
   color: var(--ink);
   font-size: 1.55rem;
@@ -881,19 +913,19 @@ blockquote svg {
 
 .checklist-panel {
   min-height: calc(100vh - 112px);
-  padding: clamp(18px, 3vw, 30px);
+  padding: clamp(22px, 3vw, 34px);
 }
 
 .panel-heading {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 18px;
-  margin-bottom: 18px;
+  gap: 22px;
+  margin-bottom: 22px;
 }
 
 .panel-heading .text-button {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
 }
 
 .checklist-panel h1 {
@@ -904,8 +936,8 @@ blockquote svg {
 .day-tabs {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 8px;
-  margin-bottom: 18px;
+  gap: 10px;
+  margin-bottom: 22px;
 }
 
 .day-tab {
@@ -938,7 +970,7 @@ blockquote svg {
 
 .task-stack {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
 .day-note,
@@ -953,16 +985,17 @@ blockquote svg {
 .day-note {
   grid-template-columns: 26px 1fr;
   gap: 10px;
-  padding: 14px 16px;
+  padding: 16px 18px;
   color: var(--accent-strong);
   font-weight: 900;
+  line-height: 1.35;
 }
 
 .task-row {
   grid-template-columns: 34px 42px minmax(0, 1fr) 32px;
-  gap: 10px;
-  min-height: 70px;
-  padding: 10px;
+  gap: 12px;
+  min-height: 74px;
+  padding: 12px;
   border: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
 }
 
@@ -1039,11 +1072,10 @@ blockquote svg {
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
-  margin-top: 5px;
+  margin-top: 6px;
 }
 
-.task-controls select,
-.minutes-input {
+.task-controls select {
   min-height: 30px;
   border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   border-radius: 999px;
@@ -1055,14 +1087,8 @@ blockquote svg {
 }
 
 .task-controls select {
-  max-width: 126px;
+  max-width: 142px;
   padding: 0 24px 0 10px;
-}
-
-.minutes-input {
-  width: 58px !important;
-  padding: 0 8px !important;
-  text-decoration: none !important;
 }
 
 .ghost-icon {
@@ -1104,14 +1130,14 @@ blockquote svg {
 .side-panel {
   display: grid;
   align-content: start;
-  gap: 14px;
+  gap: 16px;
   min-height: calc(100vh - 112px);
-  padding: 18px;
+  padding: clamp(18px, 2vw, 22px);
 }
 
 .side-panel section {
   border-radius: 24px;
-  padding: 16px;
+  padding: 18px;
   background: color-mix(in srgb, var(--surface) 86%, transparent);
 }
 
@@ -1123,6 +1149,7 @@ blockquote svg {
 .side-panel h3 {
   font-size: 1.1rem;
   line-height: 1.28;
+  overflow-wrap: anywhere;
 }
 
 .note-input {
@@ -1150,6 +1177,8 @@ blockquote svg {
   margin: 0;
   font-size: 0.82rem;
   font-weight: 800;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .error-copy {
@@ -1162,14 +1191,15 @@ blockquote svg {
 
 .split-actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 8px;
 }
 
 .split-actions .text-button {
-  min-height: 40px;
-  padding: 0 10px;
-  font-size: 0.78rem;
+  min-height: 42px;
+  padding-right: 12px;
+  padding-left: 12px;
+  font-size: 0.8rem;
 }
 
 .background-preview {
@@ -1177,8 +1207,8 @@ blockquote svg {
   display: block;
   overflow: hidden;
   width: 100%;
-  height: 110px;
-  margin: 12px 0;
+  height: 122px;
+  margin: 14px 0;
   border: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
   border-radius: 20px;
   padding: 0;
@@ -1268,9 +1298,22 @@ blockquote svg {
   color: var(--accent-strong);
 }
 
+.manual-copy {
+  width: 100%;
+  min-height: 82px;
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--border));
+  border-radius: 18px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--surface) 88%, white);
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
 @media (max-width: 1180px) {
   .workspace {
-    grid-template-columns: minmax(250px, 0.8fr) minmax(420px, 1.2fr);
+    grid-template-columns: minmax(260px, 0.8fr) minmax(430px, 1.2fr);
   }
 
   .side-panel {
@@ -1278,11 +1321,15 @@ blockquote svg {
     min-height: auto;
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  .split-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 860px) {
   .app-shell {
-    padding: 14px;
+    padding: 16px;
   }
 
   .auth-grid,
@@ -1311,12 +1358,24 @@ blockquote svg {
     min-height: auto;
   }
 
+  .workspace {
+    gap: 18px;
+  }
+
   .side-panel {
     grid-template-columns: 1fr;
   }
 
+  .split-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .panel-heading {
     display: grid;
+  }
+
+  .panel-heading .text-button {
+    width: 100%;
   }
 }
 
@@ -1324,6 +1383,14 @@ blockquote svg {
   .topbar {
     align-items: flex-start;
     gap: 12px;
+  }
+
+  .brand-lockup {
+    max-width: 56vw;
+  }
+
+  .top-actions {
+    max-width: 44vw;
   }
 
   .status-chip {
@@ -1337,15 +1404,93 @@ blockquote svg {
   }
 
   .day-tabs {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
   }
 
   .task-row {
-    grid-template-columns: 32px 38px minmax(0, 1fr) 32px;
+    grid-template-columns: 30px 36px minmax(0, 1fr) 30px;
+    gap: 9px;
+    padding: 10px;
+  }
+
+  .task-row input {
+    font-size: 0.92rem;
+  }
+
+  .task-controls select {
+    max-width: 100%;
+  }
+
+  .split-actions {
+    grid-template-columns: 1fr;
   }
 
   .progress-card {
-    grid-template-columns: 76px 1fr;
+    grid-template-columns: 70px 1fr;
+    gap: 12px;
+  }
+
+  .progress-ring {
+    width: 68px;
+    height: 68px;
+  }
+
+  .progress-ring span {
+    width: 52px;
+    height: 52px;
+  }
+}
+
+@media (max-width: 430px) {
+  .app-shell {
+    padding: 12px;
+  }
+
+  .topbar {
+    display: grid;
+  }
+
+  .brand-lockup,
+  .top-actions {
+    max-width: none;
+    width: 100%;
+  }
+
+  .top-actions {
+    justify-content: flex-start;
+  }
+
+  .hero-panel,
+  .checklist-panel,
+  .side-panel {
+    border-radius: 24px;
+  }
+
+  .checklist-panel {
+    padding: 18px;
+  }
+
+  .checklist-panel h1 {
+    font-size: clamp(2rem, 16vw, 3.1rem);
+    line-height: 1;
+  }
+
+  .day-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .task-row {
+    grid-template-columns: 30px minmax(0, 1fr) 30px;
+  }
+
+  .task-icon {
+    display: none;
+  }
+
+  .add-task {
+    grid-template-columns: 26px 1fr 38px;
+    padding: 10px;
   }
 }
 

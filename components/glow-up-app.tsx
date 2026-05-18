@@ -177,6 +177,7 @@ export function GlowUpApp() {
   const [backgroundImageError, setBackgroundImageError] = useState("");
   const [authError, setAuthError] = useState("");
   const [syncError, setSyncError] = useState("");
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "manual">("idle");
   const [appConfig, setAppConfig] = useState<AppConfig>({ googleClientId: "", previewAuthEnabled: false });
   const [lightbox, setLightbox] = useState<{ src: string; label: string } | null>(null);
 
@@ -272,6 +273,7 @@ export function GlowUpApp() {
     if (imageError || backgroundImageError) return "image error";
     return state?.generatedImage && state.generatedBackgroundImage ? "AI visuals ready" : "AI plan ready";
   }, [backgroundImageError, generationError, imageBusy, imageError, plan, state?.generatedBackgroundImage, state?.generatedImage]);
+  const sharePost = useMemo(() => (plan ? buildSharePost(plan) : ""), [plan]);
 
   async function signInPreview() {
     setAuthError("");
@@ -477,6 +479,7 @@ export function GlowUpApp() {
     setImageError("");
     setBackgroundImageError("");
     setSyncError("");
+    setCopyStatus("idle");
     setState((current) =>
       current
         ? {
@@ -536,6 +539,18 @@ export function GlowUpApp() {
       };
     });
     setNewTask("");
+  }
+
+  async function copySharePost() {
+    if (!sharePost) return;
+    setCopyStatus("idle");
+
+    try {
+      await writeClipboardText(sharePost);
+      setCopyStatus("copied");
+    } catch {
+      setCopyStatus("manual");
+    }
   }
 
   function removeTask(dayId: string, taskId: string) {
@@ -783,19 +798,6 @@ export function GlowUpApp() {
                               </option>
                             ))}
                           </select>
-                          <input
-                            className="minutes-input"
-                            type="number"
-                            min={1}
-                            max={60}
-                            value={task.minutes}
-                            onChange={(event) =>
-                              updateTask(activeDay.id, task.id, {
-                                minutes: Math.max(1, Math.min(60, Number(event.target.value) || 1))
-                              })
-                            }
-                            aria-label="Task minutes"
-                          />
                         </span>
                       </label>
                       <button
@@ -890,10 +892,24 @@ export function GlowUpApp() {
               <BadgeCheck size={22} aria-hidden />
               <h3>{completed} basics done</h3>
               <p>Keep it editable. Keep it real. Keep glowing.</p>
-              <button className="text-button full" type="button" onClick={() => navigator.clipboard?.writeText(plan.weeklyMantra)}>
+              <button className="text-button full" type="button" onClick={copySharePost}>
                 <Share2 size={17} aria-hidden />
-                Copy mantra
+                {copyStatus === "copied" ? "Post copied" : copyStatus === "manual" ? "Select post" : "Copy post"}
               </button>
+              <p className="tiny-copy" aria-live="polite">
+                {copyStatus === "copied" ? "Caption, link, and hashtags copied." : copyStatus === "manual" ? "Clipboard blocked. Post is ready below." : ""}
+              </p>
+              {copyStatus === "manual" ? (
+                <textarea
+                  className="manual-copy"
+                  value={sharePost}
+                  readOnly
+                  rows={6}
+                  autoFocus
+                  aria-label="Post text to copy manually"
+                  onFocus={(event) => event.currentTarget.select()}
+                />
+              ) : null}
             </section>
           </aside>
         </section>
@@ -1001,6 +1017,42 @@ function safelyParseStoredState(value: string | null) {
 function displaySafeMotifs(motifs: string[]) {
   const filtered = motifs.filter((motif) => !/\b(blob|blobs|bokeh|orb|orbs)\b/i.test(motif));
   return filtered.length ? filtered : ["glass", "light", "rhythm"];
+}
+
+function buildSharePost(plan: WeeklyPlan) {
+  const hashtags = ["#GlowUpChecklist", "#WeeklyReset", "#SmallHabits", "#AIPlanner"];
+  return [
+    plan.weeklyMantra,
+    "",
+    `${plan.title} - ${plan.subtitle}`,
+    "Build your week with tiny tasks, editable vibes, and AI-made visuals.",
+    "https://glowup.chamudi.xyz/",
+    "",
+    hashtags.join(" ")
+  ].join("\n");
+}
+
+async function writeClipboardText(text: string) {
+  if (navigator.clipboard && window.isSecureContext) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.inset = "0 auto auto 0";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  const copied = document.execCommand("copy");
+  textarea.remove();
+
+  if (!copied) {
+    throw new Error("Clipboard copy failed.");
+  }
 }
 
 function SetupWizard({
