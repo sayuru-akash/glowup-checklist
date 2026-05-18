@@ -26,7 +26,7 @@ export async function POST(request: Request) {
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return NextResponse.json({ error: "Gemini API key is not configured." }, { status: 503 });
+    return NextResponse.json({ error: "AI API key is not configured." }, { status: 503 });
   }
 
   try {
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       return NextResponse.json(
-        { error: "Gemini plan request failed.", detail: await readGeminiError(response) },
+        { error: "AI plan request failed.", detail: await readProviderError(response) },
         { status: 502 }
       );
     }
@@ -61,14 +61,14 @@ export async function POST(request: Request) {
     const data = await response.json();
     const text = data?.candidates?.[0]?.content?.parts?.find((part: { text?: string }) => part.text)?.text;
     if (!text) {
-      return NextResponse.json({ error: "Gemini returned no plan text." }, { status: 502 });
+      return NextResponse.json({ error: "AI returned no plan text." }, { status: 502 });
     }
 
     const generated = normalizePlan(JSON.parse(text), parsed.data);
-    return NextResponse.json({ plan: generated, source: "gemini" });
+    return NextResponse.json({ plan: generated, source: "ai" });
   } catch (error) {
     return NextResponse.json(
-      { error: "Gemini plan output could not be parsed.", detail: error instanceof Error ? error.message : "Unknown error" },
+      { error: "AI plan output could not be parsed.", detail: error instanceof Error ? error.message : "Unknown error" },
       { status: 502 }
     );
   }
@@ -81,7 +81,7 @@ User setup:
 - vibe: ${input.vibe}
 - audience/age: ${input.ageRange || "broad"}
 - personal vibe: ${input.persona || "not specified"}
-- character/avatar direction: ${input.visualIdentity || "stylized inclusive character, not a real-person copy"}
+- original character direction: ${input.visualIdentity || "stylized inclusive character with a clear personality"}
 - preferred artwork style: ${input.artStyle || "polished modern cartoon/anime-inspired planner art"}
 - current focus: ${input.currentFocus || "healthy basics"}
 - schedule: ${input.schedule || "busy"}
@@ -97,6 +97,7 @@ JSON shape:
   "subtitle": "short subtitle",
   "note": "short note about user's schedule",
   "weeklyMantra": "one sentence",
+  "themeVibe": "soft-pop|clean-reset|main-character|study-core|power-mode",
   "themeName": "2-4 words",
   "days": [
     {
@@ -108,17 +109,21 @@ JSON shape:
       ]
     }
   ],
-  "imagePrompt": "single polished image prompt under 95 words for the visual vibe artwork"
+  "imagePrompt": "single polished image prompt under 105 words for the main poster/avatar artwork",
+  "backgroundPrompt": "single polished image prompt under 80 words for an abstract glassy app background"
 }
-Rules: exactly 7 days Mon-Sun. ${input.intensity === "soft" ? "5" : input.intensity === "ambitious" ? "7" : "6"} tasks per day. Make tasks practical, varied, inclusive, low-friction, and editable. Avoid medical claims, shame, and perfectionism.`;
+Rules: exactly 7 days Mon-Sun. ${input.intensity === "soft" ? "5" : input.intensity === "ambitious" ? "7" : "6"} tasks per day. Make tasks practical, varied, inclusive, low-friction, and editable. Avoid medical claims, shame, and perfectionism.
+Pick themeVibe yourself from the user's full setup. Treat their first vibe as a starting direction, not a command.
+imagePrompt should request a tasteful original cartoon/anime/editorial character, named persona, or poster based on the user's description. It may use a user-provided personal name/persona name as the character name, but must not copy a real public figure, celebrity likeness, brand logo, or copyrighted character.
+backgroundPrompt should be a soft abstract version of the same theme for a web app background: translucent glass, airy depth, low-contrast, no readable text, no faces, no busy objects.`;
 }
 
-function normalizePlan(raw: Partial<WeeklyPlan> & { themeName?: string }, input: z.infer<typeof BodySchema>): WeeklyPlan {
+function normalizePlan(raw: Partial<WeeklyPlan> & { themeName?: string; themeVibe?: unknown }, input: z.infer<typeof BodySchema>): WeeklyPlan {
   if (!Array.isArray(raw.days) || raw.days.length !== 7) {
     throw new Error("Plan must include exactly 7 days.");
   }
 
-  const theme = buildThemeFromVibe(input.vibe, raw.themeName || raw.title || "Glow Week");
+  const theme = buildThemeFromVibe(requireVibe(raw.themeVibe, input.vibe), raw.themeName || raw.title || "Glow Week");
   const taskTarget = input.intensity === "soft" ? 5 : input.intensity === "ambitious" ? 7 : 6;
 
   return {
@@ -128,6 +133,7 @@ function normalizePlan(raw: Partial<WeeklyPlan> & { themeName?: string }, input:
     note: requireString(raw.note, "note", 140),
     weeklyMantra: requireString(raw.weeklyMantra, "weeklyMantra", 180),
     imagePrompt: requireString(raw.imagePrompt, "imagePrompt", 700),
+    backgroundPrompt: requireString(raw.backgroundPrompt, "backgroundPrompt", 620),
     days: raw.days.map((day, dayIndex) => {
       if (!Array.isArray(day.tasks) || day.tasks.length < taskTarget) {
         throw new Error(`Day ${dayIndex + 1} must include at least ${taskTarget} tasks.`);
@@ -151,6 +157,17 @@ function normalizePlan(raw: Partial<WeeklyPlan> & { themeName?: string }, input:
   };
 }
 
+function requireVibe(value: unknown, fallback: z.infer<typeof BodySchema>["vibe"]) {
+  if (
+    typeof value === "string" &&
+    ["soft-pop", "clean-reset", "main-character", "study-core", "power-mode"].includes(value)
+  ) {
+    return value as z.infer<typeof BodySchema>["vibe"];
+  }
+
+  return fallback;
+}
+
 function requireString(value: unknown, field: string, maxLength: number) {
   if (typeof value !== "string" || !value.trim()) {
     throw new Error(`Missing ${field}.`);
@@ -170,7 +187,7 @@ function requireCategory(value: unknown, field: string): WeeklyPlan["days"][numb
   throw new Error(`Invalid ${field}.`);
 }
 
-async function readGeminiError(response: Response) {
+async function readProviderError(response: Response) {
   const body = await response.text().catch(() => "");
   if (!body) return `HTTP ${response.status}`;
 

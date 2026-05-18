@@ -17,10 +17,13 @@ const StateSchema = z.object({
   plan: z.unknown().optional(),
   activeDayId: z.string().optional(),
   generatedImage: z.string().optional(),
-  planSource: z.literal("gemini").optional(),
-  imageSource: z.literal("gemini").optional(),
+  generatedBackgroundImage: z.string().optional(),
+  planSource: z.union([z.literal("ai"), z.literal("gemini")]).optional(),
+  imageSource: z.union([z.literal("ai"), z.literal("gemini")]).optional(),
+  backgroundImageSource: z.union([z.literal("ai"), z.literal("gemini")]).optional(),
   generationError: z.string().optional(),
   imageError: z.string().optional(),
+  backgroundImageError: z.string().optional(),
   generatedAt: z.string().optional()
 });
 
@@ -51,7 +54,13 @@ export async function PUT(request: Request) {
   }
 
   const state = parsed.data as StoredAppState;
-  const normalized = { ...state, profile: session.profile };
+  const normalized: StoredAppState = {
+    ...state,
+    profile: session.profile,
+    planSource: state.planSource ? "ai" : undefined,
+    imageSource: state.imageSource ? "ai" : undefined,
+    backgroundImageSource: state.backgroundImageSource ? "ai" : undefined
+  };
   await ensureSchema();
   await upsertUser(session.profile);
   await saveUserState(session.profile.id, normalized);

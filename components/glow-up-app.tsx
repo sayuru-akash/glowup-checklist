@@ -49,8 +49,8 @@ const storageKey = "glowup-checklist-state-v1";
 const questionSteps = [
   {
     key: "vibe",
-    title: "Pick the energy",
-    sub: "This decides color, type, icon attitude, and the image prompt.",
+    title: "Pick a starting vibe",
+    sub: "Start somewhere. AI can still shift the final colors, fonts, and mood after your answers.",
     type: "vibe"
   },
   {
@@ -61,14 +61,14 @@ const questionSteps = [
   },
   {
     key: "visualIdentity",
-    title: "What should the character look like?",
-    sub: "Optional details for the generated cartoon/anime-style artwork.",
-    placeholder: "Example: dark hair, lilac hoodie, cozy desk, skincare shelf, confident soft smile"
+    title: "Describe your main character",
+    sub: "Use your own traits, an original persona name, outfits, room details, mood, or cartoon/anime direction.",
+    placeholder: "Example: Sayu, dark hair, lilac hoodie, cozy desk, skincare shelf, soft confident smile"
   },
   {
     key: "artStyle",
-    title: "Choose the artwork lane",
-    sub: "This guides AI image generation without copying a real person or brand.",
+    title: "Pick a visual starting point",
+    sub: "This is only the seed. AI still chooses the final character, colors, fonts, poster, and glassy background from all answers.",
     type: "artStyle"
   },
   {
@@ -131,11 +131,31 @@ const categoryIcons: Record<GlowTask["category"], typeof Droplets> = {
 };
 
 const artStyleChoices = [
-  "soft anime planner poster",
-  "sticker scrapbook cartoon",
-  "cozy room illustration",
-  "clean editorial avatar",
-  "bold social poster"
+  {
+    value: "soft anime planner poster",
+    label: "Soft anime glow",
+    description: "Original anime-style character, cozy planner poster, polished"
+  },
+  {
+    value: "sticker scrapbook cartoon",
+    label: "Sticker diary",
+    description: "Original cartoon persona, doodles, icons, playful social-board feel"
+  },
+  {
+    value: "cozy room illustration",
+    label: "Cozy room scene",
+    description: "Original character in a warm desk scene with routine objects"
+  },
+  {
+    value: "clean editorial avatar",
+    label: "Editorial avatar",
+    description: "Original character portrait, grown-up, crisp, creator profile"
+  },
+  {
+    value: "bold social poster",
+    label: "Main-character poster",
+    description: "Original main-character poster, confident and scroll-stopping"
+  }
 ];
 
 export function GlowUpApp() {
@@ -148,6 +168,7 @@ export function GlowUpApp() {
   const [newTask, setNewTask] = useState("");
   const [generationError, setGenerationError] = useState("");
   const [imageError, setImageError] = useState("");
+  const [backgroundImageError, setBackgroundImageError] = useState("");
   const [syncError, setSyncError] = useState("");
 
   useEffect(() => {
@@ -204,7 +225,10 @@ export function GlowUpApp() {
   const total = plan?.days.flatMap((day) => day.tasks).length ?? 0;
   const progress = total ? Math.round((completed / total) * 100) : 0;
   const activeTheme = plan?.theme ?? fallbackPlan(answers).theme;
-  const appStyle = themeStyle(activeTheme);
+  const appStyle = {
+    ...themeStyle(activeTheme),
+    "--generated-bg": state?.generatedBackgroundImage ? `url("${state.generatedBackgroundImage}")` : "none"
+  } as React.CSSProperties;
   const fontClasses = [
     fontClassMap[activeTheme.fonts.body],
     `display-${activeTheme.fonts.display}`,
@@ -215,9 +239,9 @@ export function GlowUpApp() {
     if (generationError) return "generation error";
     if (!plan) return "setup";
     if (imageBusy) return "image generating";
-    if (imageError) return "image error";
-    return state?.generatedImage ? "AI image ready" : "AI plan ready";
-  }, [generationError, imageBusy, imageError, plan, state?.generatedImage]);
+    if (imageError || backgroundImageError) return "image error";
+    return state?.generatedImage && state.generatedBackgroundImage ? "AI visuals ready" : "AI plan ready";
+  }, [backgroundImageError, generationError, imageBusy, imageError, plan, state?.generatedBackgroundImage, state?.generatedImage]);
 
   async function signInPreview() {
     const response = await fetch("/api/auth/preview", { method: "POST" });
@@ -241,6 +265,7 @@ export function GlowUpApp() {
     setGenerating(true);
     setGenerationError("");
     setImageError("");
+    setBackgroundImageError("");
 
     try {
       const response = await fetch("/api/plan", {
@@ -249,7 +274,7 @@ export function GlowUpApp() {
         body: JSON.stringify(nextAnswers)
       });
       const payload = (await response.json()) as { plan?: WeeklyPlan; error?: string; detail?: string; source?: string };
-      if (!response.ok || !payload.plan || payload.source !== "gemini") {
+      if (!response.ok || !payload.plan || payload.source !== "ai") {
         throw new Error(formatUserError(formatGenerationError(payload, "AI plan generation failed.")));
       }
 
@@ -257,11 +282,11 @@ export function GlowUpApp() {
         profile: state.profile,
         answers: nextAnswers,
         plan: payload.plan,
-        planSource: "gemini",
+        planSource: "ai",
         activeDayId: payload.plan.days[0]?.id,
         generatedAt: new Date().toISOString()
       });
-      generateImage(payload.plan);
+      void generateVisuals(payload.plan);
     } catch (error) {
       setGenerationError(error instanceof Error ? error.message : "AI plan generation failed.");
     } finally {
@@ -269,26 +294,59 @@ export function GlowUpApp() {
     }
   }
 
-  async function generateImage(nextPlan: WeeklyPlan) {
+  async function requestGeneratedImage(prompt: string, kind: "poster" | "background", fallback: string) {
+    const response = await fetch("/api/image", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, kind })
+    });
+    const payload = (await response.json()) as {
+      image?: string | null;
+      error?: string;
+      detail?: string;
+      source?: string;
+      storage?: string;
+    };
+    const image = payload.image;
+    if (!response.ok || !image || payload.source !== "ai" || payload.storage !== "vercel-blob") {
+      throw new Error(formatUserError(formatGenerationError(payload, fallback)));
+    }
+
+    return image;
+  }
+
+  async function generateVisuals(nextPlan: WeeklyPlan) {
     setImageBusy(true);
     setImageError("");
+    setBackgroundImageError("");
     try {
-      const response = await fetch("/api/image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: nextPlan.imagePrompt })
-      });
-      const payload = (await response.json()) as { image?: string | null; error?: string; detail?: string; source?: string };
-      const image = payload.image;
-      if (!response.ok || !image || payload.source !== "gemini") {
-        throw new Error(formatUserError(formatGenerationError(payload, "AI image generation failed.")));
-      }
+      const backgroundPrompt =
+        nextPlan.backgroundPrompt ||
+        `Create a wide abstract glass background for a ${nextPlan.theme.name} weekly glow-up web app. No people, no readable text, no logos.`;
+      const [posterResult, backgroundResult] = await Promise.allSettled([
+        requestGeneratedImage(nextPlan.imagePrompt, "poster", "AI poster generation failed."),
+        requestGeneratedImage(backgroundPrompt, "background", "AI background generation failed.")
+      ]);
+      const posterError = posterResult.status === "rejected" ? formatUserError(String(posterResult.reason?.message ?? posterResult.reason)) : "";
+      const backgroundError =
+        backgroundResult.status === "rejected" ? formatUserError(String(backgroundResult.reason?.message ?? backgroundResult.reason)) : "";
 
-      setState((current) => (current ? { ...current, generatedImage: image, imageSource: "gemini", imageError: "" } : current));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "AI image generation failed.";
-      setImageError(message);
-      setState((current) => (current ? { ...current, generatedImage: undefined, imageError: message } : current));
+      setImageError(posterError);
+      setBackgroundImageError(backgroundError);
+      setState((current) =>
+        current
+          ? {
+              ...current,
+              generatedImage: posterResult.status === "fulfilled" ? posterResult.value : current.generatedImage,
+              generatedBackgroundImage:
+                backgroundResult.status === "fulfilled" ? backgroundResult.value : current.generatedBackgroundImage,
+              imageSource: posterResult.status === "fulfilled" ? "ai" : current.imageSource,
+              backgroundImageSource: backgroundResult.status === "fulfilled" ? "ai" : current.backgroundImageSource,
+              imageError: posterError,
+              backgroundImageError: backgroundError
+            }
+          : current
+      );
     } finally {
       setImageBusy(false);
     }
@@ -303,6 +361,7 @@ export function GlowUpApp() {
     setStep(0);
     setGenerationError("");
     setImageError("");
+    setBackgroundImageError("");
     setSyncError("");
     setState((current) =>
       current
@@ -325,6 +384,19 @@ export function GlowUpApp() {
               ? { ...day, tasks: day.tasks.map((task) => (task.id === taskId ? { ...task, ...patch } : task)) }
               : day
           )
+        }
+      };
+    });
+  }
+
+  function updatePlanMeta(patch: Partial<Pick<WeeklyPlan, "title" | "subtitle" | "note" | "weeklyMantra">>) {
+    setState((current) => {
+      if (!current?.plan) return current;
+      return {
+        ...current,
+        plan: {
+          ...current.plan,
+          ...patch
         }
       };
     });
@@ -471,6 +543,12 @@ export function GlowUpApp() {
                   <p>{activeTheme.motifs.join(" · ")}</p>
                 </div>
               )}
+              {imageBusy ? (
+                <div className="art-refreshing" aria-live="polite">
+                  <RefreshCw className="spin" size={16} aria-hidden />
+                  <span>Refreshing visuals</span>
+                </div>
+              ) : null}
             </div>
 
             <div className="progress-card">
@@ -478,14 +556,28 @@ export function GlowUpApp() {
                 <span>{progress}%</span>
               </div>
               <div>
-                <h2>{plan.title}</h2>
-                <p>{plan.subtitle}</p>
+                <input
+                  className="plan-title-input"
+                  value={plan.title}
+                  onChange={(event) => updatePlanMeta({ title: event.target.value })}
+                  aria-label="Plan title"
+                />
+                <input
+                  className="plan-subtitle-input"
+                  value={plan.subtitle}
+                  onChange={(event) => updatePlanMeta({ subtitle: event.target.value })}
+                  aria-label="Plan subtitle"
+                />
               </div>
             </div>
 
             <blockquote>
               <Heart size={18} aria-hidden />
-              {plan.weeklyMantra}
+              <textarea
+                value={plan.weeklyMantra}
+                onChange={(event) => updatePlanMeta({ weeklyMantra: event.target.value })}
+                aria-label="Weekly mantra"
+              />
             </blockquote>
           </aside>
 
@@ -495,7 +587,7 @@ export function GlowUpApp() {
                 <p className="script-label">Weekly vibe</p>
                 <h1>{activeDay?.focus}</h1>
               </div>
-              <button className="text-button" type="button" onClick={() => generatePlan(state.answers ?? answers)}>
+              <button className="text-button" type="button" onClick={() => generatePlan(state.answers ?? answers)} disabled={generating}>
                 <RefreshCw size={17} aria-hidden />
                 Re-roll week
               </button>
@@ -548,7 +640,13 @@ export function GlowUpApp() {
                           onChange={(event) => updateTask(activeDay.id, task.id, { label: event.target.value })}
                           aria-label="Task label"
                         />
-                        {task.detail ? <small>{task.detail}</small> : null}
+                        <input
+                          className="task-detail-input"
+                          value={task.detail ?? ""}
+                          onChange={(event) => updateTask(activeDay.id, task.id, { detail: event.target.value })}
+                          placeholder="Add detail"
+                          aria-label="Task detail"
+                        />
                       </label>
                       <span className="minutes">{task.minutes}m</span>
                       <button
@@ -584,7 +682,12 @@ export function GlowUpApp() {
           <aside className="side-panel">
             <section>
               <p className="script-label">Note</p>
-              <h3>{plan.note}</h3>
+              <textarea
+                className="note-input"
+                value={plan.note}
+                onChange={(event) => updatePlanMeta({ note: event.target.value })}
+                aria-label="Week note"
+              />
             </section>
             <section>
               <p className="script-label">Theme system</p>
@@ -596,11 +699,16 @@ export function GlowUpApp() {
               <p className="tiny-copy">{activeTheme.motifs.join(" · ")}</p>
             </section>
             <section>
-              <p className="script-label">Generation</p>
-              <h3>Plan: AI</h3>
-              <p className={state.generatedImage ? "tiny-copy" : "tiny-copy error-copy"}>
-                Image: {state.generatedImage ? "AI" : imageError ? "Blocked - check error" : "Generating"}
+              <p className="script-label">Visuals</p>
+              <h3>{state.generatedImage ? "Poster ready" : imageBusy ? "Making poster" : "Poster pending"}</h3>
+              <p className={backgroundImageError ? "tiny-copy error-copy" : "tiny-copy"}>
+                Background: {state.generatedBackgroundImage ? "ready" : backgroundImageError ? "blocked" : imageBusy ? "generating" : "pending"}
               </p>
+              {imageError || backgroundImageError ? <p className="tiny-copy error-copy">{imageError || backgroundImageError}</p> : null}
+              <button className="text-button full visual-refresh" type="button" onClick={() => generateVisuals(plan)} disabled={imageBusy}>
+                <RefreshCw size={16} aria-hidden />
+                Refresh visuals
+              </button>
             </section>
             <section className="share-card">
               <BadgeCheck size={22} aria-hidden />
@@ -644,8 +752,8 @@ function AuthPanel({ onPreview, onGoogle }: { onPreview: () => void; onGoogle: (
       <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" onLoad={() => setGisReady(true)} />
       <div className="intro-copy">
         <p className="script-label">small steps · every day · big transformation</p>
-        <h1>Your weekly glow-up board.</h1>
-        <p>Sign in, answer quick prompts, get an AI plan and artwork you can actually edit.</p>
+        <h1>Your glow-up week.</h1>
+        <p>Sign in, answer the vibe prompts, then edit the plan and visuals until it feels like you.</p>
         <div className="auth-actions">
           {clientId ? <div id="googleSignInButton" className="google-slot" /> : null}
           <button className="primary-button" type="button" onClick={onPreview}>
@@ -741,16 +849,16 @@ function SetupWizard({
             ))}
           </div>
         ) : "type" in current && current.type === "artStyle" ? (
-          <div className="intensity-grid">
-            {artStyleChoices.map((artStyle) => (
+          <div className="art-style-grid">
+            {artStyleChoices.map((choice) => (
               <button
-                key={artStyle}
-                className={answers.artStyle === artStyle ? "intensity selected" : "intensity"}
+                key={choice.value}
+                className={answers.artStyle === choice.value ? "art-style-choice selected" : "art-style-choice"}
                 type="button"
-                onClick={() => setAnswers({ ...answers, artStyle })}
+                onClick={() => setAnswers({ ...answers, artStyle: choice.value })}
               >
-                <span>{artStyle}</span>
-                <small>AI image guide</small>
+                <span>{choice.label}</span>
+                <small>{choice.description}</small>
               </button>
             ))}
           </div>

@@ -19,6 +19,7 @@ Production paths use:
 - signed HTTP-only session cookie
 - Google AI `generateContent` for weekly plans
 - Google AI image generation for vibe artwork
+- Vercel Blob object storage for generated poster/background images
 - Postgres persistence for signed-in account state
 
 ## Google configuration
@@ -60,6 +61,16 @@ npm run db:init
 
 The schema creates `glow_users` and `glow_states` only.
 
+## Image storage
+
+Generated artwork is uploaded to Vercel Blob and the app stores only the returned image URL in account state. Set:
+
+```bash
+BLOB_READ_WRITE_TOKEN=...
+```
+
+The image API returns an error when Blob storage is not configured. It does not return base64 images as a production fallback.
+
 ## Vercel
 
 Set these environment variables in Vercel for Production, Preview, and Development:
@@ -72,6 +83,7 @@ GEMINI_API_KEY=
 GEMINI_TEXT_MODEL=gemini-3-flash-preview
 GEMINI_IMAGE_MODEL=gemini-2.5-flash-image
 DATABASE_URL=
+BLOB_READ_WRITE_TOKEN=
 ```
 
 After deployment, add the deployed Vercel origin to the Google OAuth web client's Authorized JavaScript origins.

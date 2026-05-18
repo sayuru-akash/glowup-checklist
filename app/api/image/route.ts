@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { imageStorageConfigured, storeGeneratedImage } from "@/lib/image-storage";
+
+export const runtime = "nodejs";
 
 const BodySchema = z.object({
-  prompt: z.string().min(20).max(1200)
+  prompt: z.string().min(20).max(1200),
+  kind: z.enum(["poster", "background"]).default("poster")
 });
 
 type GeminiPart = {
@@ -19,7 +23,10 @@ export async function POST(request: Request) {
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return NextResponse.json({ error: "Gemini API key is not configured." }, { status: 503 });
+    return NextResponse.json({ error: "AI API key is not configured." }, { status: 503 });
+  }
+  if (!imageStorageConfigured()) {
+    return NextResponse.json({ error: "Image storage is not configured." }, { status: 503 });
   }
 
   try {
@@ -40,7 +47,7 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       return NextResponse.json(
-        { error: "Gemini image request failed.", detail: await readGeminiError(response) },
+        { error: "AI image request failed.", detail: await readProviderError(response) },
         { status: 502 }
       );
     }
@@ -52,20 +59,21 @@ export async function POST(request: Request) {
       ? { mime: imagePart.inlineData.mimeType, data: imagePart.inlineData.data }
       : { mime: imagePart?.inline_data?.mime_type, data: imagePart?.inline_data?.data };
     if (!inline?.data) {
-      return NextResponse.json({ error: "Gemini returned no image data." }, { status: 502 });
+      return NextResponse.json({ error: "AI returned no image data." }, { status: 502 });
     }
 
     const mime = inline.mime || "image/png";
-    return NextResponse.json({ image: `data:${mime};base64,${inline.data}`, source: "gemini" });
+    const image = await storeGeneratedImage({ mime, base64: inline.data, kind: parsed.data.kind });
+    return NextResponse.json({ image, source: "ai", storage: "vercel-blob" });
   } catch (error) {
     return NextResponse.json(
-      { error: "Gemini image output could not be read.", detail: error instanceof Error ? error.message : "Unknown error" },
+      { error: "AI image output could not be read.", detail: error instanceof Error ? error.message : "Unknown error" },
       { status: 502 }
     );
   }
 }
 
-async function readGeminiError(response: Response) {
+async function readProviderError(response: Response) {
   const body = await response.text().catch(() => "");
   if (!body) return `HTTP ${response.status}`;
 

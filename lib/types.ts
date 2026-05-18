@@ -73,6 +73,7 @@ export type WeeklyPlan = {
   weeklyMantra: string;
   days: GlowDay[];
   imagePrompt: string;
+  backgroundPrompt: string;
 };
 
 export type StoredAppState = {
@@ -81,9 +82,12 @@ export type StoredAppState = {
   plan?: WeeklyPlan;
   activeDayId?: string;
   generatedImage?: string;
-  planSource?: "gemini";
-  imageSource?: "gemini";
+  generatedBackgroundImage?: string;
+  planSource?: "ai";
+  imageSource?: "ai";
+  backgroundImageSource?: "ai";
   generationError?: string;
   imageError?: string;
+  backgroundImageError?: string;
   generatedAt?: string;
 };

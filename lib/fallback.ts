@@ -44,7 +44,8 @@ export function fallbackPlan(answers: SetupAnswers): WeeklyPlan {
       affirmation: ["I can keep this simple.", "Consistency counts.", "My basics are powerful.", "I can reset fast."][dayIndex % 4],
       tasks: rotateTasks(dayIndex, answers.intensity)
     })),
-    imagePrompt: buildImagePrompt(answers)
+    imagePrompt: buildImagePrompt(answers),
+    backgroundPrompt: buildBackgroundPrompt(answers)
   };
 }
 
@@ -68,10 +69,21 @@ export function buildImagePrompt(answers: SetupAnswers) {
     `Visual direction: ${visual}.`,
     `Audience and tone: ${answers.ageRange || "broad audience"}, ${answers.style || "fun but clean"}.`,
     `Personal vibe: ${answers.persona || "confident everyday person"}.`,
-    `Character direction: ${answers.visualIdentity || "stylized cozy avatar, inclusive and not a real-person copy"}.`,
+    `Original character direction: ${answers.visualIdentity || "stylized cozy avatar with a clear personality"}.`,
     `Artwork style: ${answers.artStyle || "modern soft anime-inspired planner art"}.`,
     `Main focus: ${answers.currentFocus || "healthy routines"}.`,
-    "No brand logos, no celebrity likeness, no tiny unreadable UI text. Include expressive planner objects, a confident cozy scene, and space for code-native checklist UI to sit beside it.",
+    "Use a fully original cartoon/anime/editorial character or named persona if provided. No brand logos, celebrity likeness, copyrighted character, or tiny unreadable UI text. Include expressive planner objects, a confident cozy scene, and space for code-native checklist UI to sit beside it.",
     "Modern social-app energy, premium, fun, inclusive, not childish, not cluttered."
+  ].join(" ");
+}
+
+export function buildBackgroundPrompt(answers: SetupAnswers) {
+  const visual = promptStyleForVibe(answers.vibe);
+  return [
+    "Create a wide abstract background for a modern weekly glow-up web app.",
+    `Visual direction: ${visual}.`,
+    `Mood: ${answers.persona || "calm confident reset"}, ${answers.artStyle || "soft polished illustration"}.`,
+    "Translucent glass layers, airy depth, gentle light, soft grain, elegant color wash.",
+    "No people, no readable text, no logos, no busy objects. Low contrast so app panels stay readable."
   ].join(" ");
 }

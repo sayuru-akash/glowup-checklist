@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
+    "@vercel/blob": "^2.3.3",
     "google-auth-library": "^10.6.2",
     "jose": "^6.2.3",
     "lucide-react": "^0.511.0",
