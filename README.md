@@ -10,20 +10,9 @@
 
 GlowUp Checklist is an AI-backed weekly glow-up planner that turns a short personal setup flow into an editable seven-day checklist, a dynamic theme system, and generated visual artwork. It uses real Google sign-in, real Postgres persistence, real Google AI plan/image generation, and real Backblaze B2 image storage.
 
-**Live production:** [https://glowup.chamudi.xyz](https://glowup.chamudi.xyz)
-
 ## Screenshots
 
-Real app screenshots are stored in the repo so README previews do not depend on remote image hosts.
-
 ![GlowUp Checklist app overview](docs/screenshots/overview.jpg)
-
-<details>
-<summary>Full browser workspace capture</summary>
-
-![GlowUp Checklist workspace in Edge](docs/screenshots/workspace-edge.png)
-
-</details>
 
 ## What It Does
 
