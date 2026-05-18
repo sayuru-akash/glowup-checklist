@@ -136,6 +136,7 @@ JSON shape:
 }
 Rules: exactly 7 days Mon-Sun. ${input.intensity === "soft" ? "5" : input.intensity === "ambitious" ? "7" : "6"} tasks per day. Make tasks practical, varied, inclusive, low-friction, and editable. Avoid medical claims, shame, and perfectionism.
 Pick the final theme, colors, fonts, motifs, and icon style from the user's full setup. Treat their first vibe and artwork choice as starting directions, not commands.
+Do not use blobs, bokeh, gradient orbs, or orb motifs anywhere. Prefer concrete motifs like glass, ribbon, chrome, notebook, pearl, star, moon, grid, bow, light, sticker, or room.
 Palette must be app-usable: strong text contrast, light-friendly, not a one-note monochrome palette, and all values must be six-digit hex.
 imagePrompt should request a tasteful original cartoon/anime/editorial character, named persona, or poster based on the user's description. It may use a user-provided personal name/persona name as the character name, but must not copy a real public figure, celebrity likeness, brand logo, or copyrighted character.
 backgroundPrompt should be a soft abstract version of the same theme for a web app background: translucent glass panels, airy depth, low-contrast, matching palette, no readable text, no faces, no busy objects.`;
@@ -258,7 +259,13 @@ function requireMotifs(value: unknown) {
     throw new Error("Missing theme.motifs.");
   }
 
-  return value.slice(0, 5).map((item, index) => requireString(item, `theme.motifs.${index}`, 28));
+  return value.slice(0, 5).map((item, index) => {
+    const motif = requireString(item, `theme.motifs.${index}`, 28);
+    if (/\b(blob|blobs|bokeh|orb|orbs)\b/i.test(motif)) {
+      throw new Error(`Invalid theme.motifs.${index}.`);
+    }
+    return motif;
+  });
 }
 
 function requireIconStyle(value: unknown): ThemeSpec["iconStyle"] {

@@ -33,6 +33,14 @@ GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 
 For local testing, add `http://localhost` and `http://localhost:3000` as Authorized JavaScript origins.
 
+Preview auth is only for local smoke testing:
+
+```bash
+PREVIEW_AUTH_ENABLED=true
+```
+
+Production disables preview auth regardless of this flag.
+
 ## Google AI configuration
 
 Create a Google AI API key in Google AI Studio:
@@ -70,18 +78,20 @@ Backblaze setup requirements:
 - Create a private B2 bucket that is S3-compatible.
 - Create a non-master application key for that bucket.
 - Give the key write/read/delete file permissions plus `listAllBucketNames` for SDK compatibility when the key is bucket-restricted.
-- Use the bucket's S3 endpoint, for example `https://s3.us-west-004.backblazeb2.com`; the region is the middle part, for example `us-west-004`.
+- Use the bucket's S3 endpoint, for example `https://s3.us-east-005.backblazeb2.com`; the region is the middle part, for example `us-east-005`.
 
 Set:
 
 ```bash
-B2_BUCKET=
-B2_ENDPOINT=https://s3.us-west-004.backblazeb2.com
-B2_REGION=us-west-004
+B2_BUCKET=glowup-web-img-store
+B2_ENDPOINT=https://s3.us-east-005.backblazeb2.com
+B2_REGION=us-east-005
 B2_KEY_ID=
 B2_APPLICATION_KEY=
 B2_PUBLIC_BASE_URL=
 ```
+
+Do not set `PREVIEW_AUTH_ENABLED=true` in Vercel.
 
 `B2_PUBLIC_BASE_URL` is optional. Use it when you want the bucket's Friendly URL origin or CDN URL, for example `https://f000.backblazeb2.com/file/your-bucket`. The image API returns an error when B2 storage is not configured. It does not return base64 images as a production fallback.
 

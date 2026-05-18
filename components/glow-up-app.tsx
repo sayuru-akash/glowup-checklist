@@ -181,11 +181,6 @@ export function GlowUpApp() {
   const [lightbox, setLightbox] = useState<{ src: string; label: string } | null>(null);
 
   useEffect(() => {
-    document.documentElement.style.background = activeTheme.palette.background;
-    document.body.style.background = activeTheme.palette.background;
-  }, [activeTheme.palette.background]);
-
-  useEffect(() => {
     if (!lightbox) return;
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") setLightbox(null);
@@ -254,6 +249,7 @@ export function GlowUpApp() {
   const total = plan?.days.flatMap((day) => day.tasks).length ?? 0;
   const progress = total ? Math.round((completed / total) * 100) : 0;
   const activeTheme = plan?.theme ?? fallbackPlan(answers).theme;
+  const displayMotifs = displaySafeMotifs(activeTheme.motifs);
   const appStyle = {
     ...themeStyle(activeTheme),
     "--generated-bg": state?.generatedBackgroundImage ? `url("${state.generatedBackgroundImage}")` : "none"
@@ -263,6 +259,11 @@ export function GlowUpApp() {
     `display-${activeTheme.fonts.display}`,
     `hand-${activeTheme.fonts.handwriting}`
   ].join(" ");
+
+  useEffect(() => {
+    document.documentElement.style.background = activeTheme.palette.background;
+    document.body.style.background = activeTheme.palette.background;
+  }, [activeTheme.palette.background]);
 
   const generatedLabel = useMemo(() => {
     if (generationError) return "generation error";
@@ -650,7 +651,7 @@ export function GlowUpApp() {
                 <div className="poster-fallback">
                   <Sparkles aria-hidden />
                   <span>{activeTheme.name}</span>
-                  <p>{activeTheme.motifs.join(" · ")}</p>
+                  <p>{displayMotifs.join(" · ")}</p>
                 </div>
               )}
               {imageBusy ? (
@@ -846,7 +847,7 @@ export function GlowUpApp() {
                 ))}
               </div>
               <p className="tiny-copy">
-                {activeTheme.motifs.join(" · ")} · {activeTheme.fonts.display} + {activeTheme.fonts.body}
+                {displayMotifs.join(" · ")} · {activeTheme.fonts.display} + {activeTheme.fonts.body}
               </p>
             </section>
             <section>
@@ -995,6 +996,11 @@ function safelyParseStoredState(value: string | null) {
     window.localStorage.removeItem(storageKey);
     return null;
   }
+}
+
+function displaySafeMotifs(motifs: string[]) {
+  const filtered = motifs.filter((motif) => !/\b(blob|blobs|bokeh|orb|orbs)\b/i.test(motif));
+  return filtered.length ? filtered : ["glass", "light", "rhythm"];
 }
 
 function SetupWizard({
