@@ -1,6 +1,7 @@
 export type VibeKey = "soft-pop" | "clean-reset" | "main-character" | "study-core" | "power-mode";
 
 export type FontKey = "nunito" | "outfit" | "jakarta" | "fraunces" | "caveat" | "patrick";
+export type DayLabel = "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat" | "Sun";
 
 export type UserProfile = {
   id: string;
@@ -35,7 +36,8 @@ export type GlowTask = {
 
 export type GlowDay = {
   id: string;
-  label: string;
+  label: DayLabel;
+  date?: string;
   focus: string;
   affirmation: string;
   tasks: GlowTask[];
@@ -80,6 +82,8 @@ export type StoredAppState = {
   answers?: SetupAnswers;
   setupStep?: number;
   plan?: WeeklyPlan;
+  planStartDate?: string;
+  planEndDate?: string;
   activeDayId?: string;
   generatedImage?: string;
   generatedBackgroundImage?: string;

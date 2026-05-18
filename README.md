@@ -9,7 +9,7 @@
 [![Google AI](https://img.shields.io/badge/AI-Google_AI-4285f4)](https://ai.google.dev/)
 [![License: GPL v3 or later](https://img.shields.io/badge/License-GPL--3.0--or--later-blue.svg)](LICENSE)
 
-GlowUp Checklist is an AI-backed weekly glow-up planner that turns a short personal setup flow into an editable seven-day checklist, a dynamic theme system, and generated visual artwork. It uses real Google sign-in, real Postgres persistence, real Google AI plan/image generation, and real Backblaze B2 image storage.
+GlowUp Checklist is an AI-backed weekly glow-up planner that turns a short personal setup flow into an editable checklist for the days left in the current week, a dynamic theme system, and generated visual artwork. It uses real Google sign-in, real Postgres persistence, real Google AI plan/image generation, and real Backblaze B2 image storage.
 
 ## Screenshots
 
@@ -20,7 +20,8 @@ GlowUp Checklist is an AI-backed weekly glow-up planner that turns a short perso
 - Signs users in with Google Identity Services and verifies the Google ID token server-side.
 - Saves each signed-in user's setup answers, generated plan, generated images, edits, active day, and progress in Postgres.
 - Asks a guided setup flow for vibe, identity/persona, artwork direction, schedule, blockers, desired weekly result, and task load.
-- Generates a seven-day plan with editable title, subtitle, note, mantra, tasks, task details, task categories, and completion state.
+- Generates a date-aware plan from the current day through Sunday, with editable title, subtitle, note, mantra, tasks, task details, task categories, and completion state.
+- Restores saved users to today's checklist tab after login or refresh, and prompts for a fresh task list when the stored week has ended.
 - Generates two image assets per plan: a main poster/avatar image and a soft glassy background image.
 - Stores generated images in a private Backblaze B2 bucket through the S3-compatible API.
 - Serves private generated images back through a same-origin `/api/media` route.
@@ -36,10 +37,11 @@ GlowUp Checklist is an AI-backed weekly glow-up planner that turns a short perso
 2. App verifies the Google credential on the server and creates a signed HTTP-only session cookie.
 3. Existing users are hydrated from Postgres and return to their saved setup or workspace state.
 4. New users answer the guided setup questions.
-5. `/api/plan` calls Google AI and requires a strict JSON weekly plan with theme data.
+5. `/api/plan` calls Google AI and requires a strict JSON plan for the remaining days in the current week, with theme data.
 6. `/api/image` calls Google AI image generation for poster/background assets.
 7. Generated images are uploaded to Backblaze B2 and stored as same-origin URLs such as `/api/media?key=generated%2Fbackground%2F2026-05-18%2F064a4d46-e491-4d9f-96d3-3e3c8e291091.png`.
 8. User edits tasks, text, visuals, and progress; signed-in state syncs back to Postgres.
+9. When the stored plan is past its Sunday end date, the app keeps the user signed in and offers a one-click task-list refresh for the new current-week window.
 
 ## Tech Stack
 

@@ -602,6 +602,54 @@ select:focus-visible {
   font-weight: 850;
 }
 
+.week-expired {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 1180px;
+  margin: -8px auto 18px;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border));
+  border-radius: 20px;
+  padding: 12px 14px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--surface) 82%, transparent), color-mix(in srgb, var(--highlight) 36%, transparent)),
+    color-mix(in srgb, var(--surface) 88%, transparent);
+  color: var(--ink);
+  box-shadow: 0 18px 54px color-mix(in srgb, var(--ink) 8%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(1.08);
+  backdrop-filter: blur(16px);
+}
+
+.week-expired > svg {
+  flex: 0 0 auto;
+  color: var(--accent-strong);
+}
+
+.week-expired div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.week-expired strong,
+.week-expired span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.week-expired strong {
+  font-size: 0.96rem;
+}
+
+.week-expired span {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
 .error-banner svg,
 .error-state svg,
 .global-error svg {
@@ -1396,6 +1444,17 @@ blockquote svg {
   }
 
   .panel-heading .text-button {
+    width: 100%;
+  }
+
+  .week-expired {
+    align-items: stretch;
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr);
+  }
+
+  .week-expired .text-button {
+    grid-column: 1 / -1;
     width: 100%;
   }
 }

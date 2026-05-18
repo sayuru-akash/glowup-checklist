@@ -1,7 +1,7 @@
 import { buildThemeFromVibe, promptStyleForVibe } from "@/lib/theme";
-import type { GlowTask, SetupAnswers, WeeklyPlan } from "@/lib/types";
+import type { DayLabel, GlowTask, SetupAnswers, WeeklyPlan } from "@/lib/types";
 
-const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const days: DayLabel[] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const categoryTasks: Array<Omit<GlowTask, "id" | "completed">> = [
   { label: "Drink water before your first scroll", detail: "Keep a bottle visible.", category: "hydration" },

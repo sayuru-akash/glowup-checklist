@@ -31,7 +31,7 @@ import Script from "next/script";
 import { useEffect, useMemo, useState } from "react";
 import { fallbackPlan } from "@/lib/fallback";
 import { fontClassMap, themeStyle, vibePresets } from "@/lib/theme";
-import type { GlowTask, SetupAnswers, StoredAppState, UserProfile, WeeklyPlan } from "@/lib/types";
+import type { DayLabel, GlowTask, SetupAnswers, StoredAppState, UserProfile, WeeklyPlan } from "@/lib/types";
 
 declare global {
   interface Window {
@@ -215,16 +215,17 @@ export function GlowUpApp() {
       } else {
         setSyncError("");
         const previewState = parsed?.profile?.authMode === "preview" ? parsed : profile?.authMode === "preview" ? { profile } : null;
-        setState(previewState);
-        if (previewState?.answers) setAnswers(previewState.answers);
-        if (typeof previewState?.setupStep === "number") setStep(previewState.setupStep);
+        const normalizedPreviewState = normalizeStoredState(previewState);
+        setState(normalizedPreviewState);
+        if (normalizedPreviewState?.answers) setAnswers(normalizedPreviewState.answers);
+        if (typeof normalizedPreviewState?.setupStep === "number") setStep(normalizedPreviewState.setupStep);
       }
       setBooted(true);
     }
     boot().catch(() => {
       const stored = window.localStorage.getItem(storageKey);
       const parsed = safelyParseStoredState(stored);
-      setState(parsed?.profile?.authMode === "preview" ? parsed : null);
+      setState(normalizeStoredState(parsed?.profile?.authMode === "preview" ? parsed : null));
       setAuthError("Session check failed. Refresh once, then sign in again if it continues.");
       setBooted(true);
     });
@@ -258,6 +259,7 @@ export function GlowUpApp() {
 
   const plan = state?.plan;
   const activeDay = plan?.days.find((day) => day.id === state?.activeDayId) ?? plan?.days[0];
+  const planExpired = isPlanExpiredState(state);
   const completed = plan?.days.flatMap((day) => day.tasks).filter((task) => task.completed).length ?? 0;
   const total = plan?.days.flatMap((day) => day.tasks).length ?? 0;
   const progress = total ? Math.round((completed / total) * 100) : 0;
@@ -281,10 +283,11 @@ export function GlowUpApp() {
   const generatedLabel = useMemo(() => {
     if (generationError) return "generation error";
     if (!plan) return "setup";
+    if (planExpired) return "week ended";
     if (imageBusy) return "image generating";
     if (imageError || backgroundImageError) return "image error";
     return state?.generatedImage && state.generatedBackgroundImage ? "AI visuals ready" : "AI plan ready";
-  }, [backgroundImageError, generationError, imageBusy, imageError, plan, state?.generatedBackgroundImage, state?.generatedImage]);
+  }, [backgroundImageError, generationError, imageBusy, imageError, plan, planExpired, state?.generatedBackgroundImage, state?.generatedImage]);
   const sharePost = useMemo(() => (plan ? buildSharePost(plan) : ""), [plan]);
 
   async function signInPreview() {
@@ -324,7 +327,7 @@ export function GlowUpApp() {
       setSyncError("");
     }
     const saved = payload?.state ? { ...payload.state, profile } : null;
-    const nextState = saved ?? { profile, ...draft };
+    const nextState = normalizeStoredState(saved ?? { profile, ...draft }) ?? { profile };
     setState(nextState);
     if (nextState.answers) setAnswers(nextState.answers);
     if (typeof nextState.setupStep === "number") setStep(Math.min(questionSteps.length - 1, Math.max(0, nextState.setupStep)));
@@ -332,7 +335,7 @@ export function GlowUpApp() {
       await fetch("/api/state", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...nextState, profile })
+        body: JSON.stringify(nextState)
       }).catch(() => null);
     }
   }
@@ -356,10 +359,11 @@ export function GlowUpApp() {
     setBackgroundImageError("");
 
     try {
+      const planWindow = buildPlanWindow();
       const response = await fetch("/api/plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(nextAnswers)
+        body: JSON.stringify({ ...nextAnswers, ...planWindow })
       });
       const payload = (await response.json()) as { plan?: WeeklyPlan; error?: string; detail?: string; source?: string };
       if (!response.ok || !payload.plan || payload.source !== "ai") {
@@ -372,7 +376,9 @@ export function GlowUpApp() {
         setupStep: questionSteps.length - 1,
         plan: payload.plan,
         planSource: "ai",
-        activeDayId: payload.plan.days[0]?.id,
+        planStartDate: planWindow.planStartDate,
+        planEndDate: planWindow.planEndDate,
+        activeDayId: resolveActiveDayId(payload.plan, planWindow.planStartDate),
         generatedAt: new Date().toISOString()
       });
       void generateVisuals(payload.plan);
@@ -632,6 +638,19 @@ export function GlowUpApp() {
         <div className="global-error" role="alert">
           <Bot size={18} aria-hidden />
           <span>{syncError}</span>
+        </div>
+      ) : null}
+
+      {plan && planExpired ? (
+        <div className="week-expired" role="status">
+          <RefreshCw size={18} aria-hidden />
+          <div>
+            <strong>This checklist week is done.</strong>
+            <span>Generate a fresh plan for the days left in this week.</span>
+          </div>
+          <button className="text-button compact" type="button" onClick={() => generatePlan(state.answers ?? answers)} disabled={generating}>
+            Refresh task list
+          </button>
         </div>
       ) : null}
 
@@ -1023,6 +1042,88 @@ function safelyParseStoredState(value: string | null) {
     window.localStorage.removeItem(storageKey);
     return null;
   }
+}
+
+function normalizeStoredState(value: StoredAppState | null | undefined): StoredAppState | null {
+  if (!value?.plan?.days.length) return value ?? null;
+
+  const days = value.plan.days;
+  const existingActiveDay = days.find((day) => day.id === value.activeDayId);
+  const today = getTodayDateKey();
+  const datedCurrentDay = days.find((day) => day.date === today);
+  const hasDatedDays = days.some((day) => Boolean(day.date));
+  const labelCurrentDay = hasDatedDays ? undefined : days.find((day) => day.label === getTodayDayLabel());
+  const activeDay = isPlanExpiredState(value) ? existingActiveDay ?? days[0] : datedCurrentDay ?? labelCurrentDay ?? existingActiveDay ?? days[0];
+  const lastDay = days[days.length - 1];
+
+  return {
+    ...value,
+    planStartDate: value.planStartDate ?? days[0]?.date,
+    planEndDate: value.planEndDate ?? lastDay?.date ?? inferGeneratedPlanEndDate(value),
+    activeDayId: activeDay?.id
+  };
+}
+
+function buildPlanWindow() {
+  const start = startOfLocalDay(new Date());
+  const daysUntilSunday = start.getDay() === 0 ? 0 : 7 - start.getDay();
+  const dayLabels = Array.from({ length: daysUntilSunday + 1 }, (_, index) => getLocalDayLabel(addLocalDays(start, index)));
+
+  return {
+    planStartDate: toLocalDateKey(start),
+    planEndDate: toLocalDateKey(addLocalDays(start, daysUntilSunday)),
+    dayLabels
+  };
+}
+
+function resolveActiveDayId(plan: WeeklyPlan, dateKey = getTodayDateKey()) {
+  return plan.days.find((day) => day.date === dateKey)?.id ?? plan.days[0]?.id;
+}
+
+function isPlanExpiredState(value: StoredAppState | null | undefined) {
+  if (!value?.plan) return false;
+  const lastDay = value.plan.days[value.plan.days.length - 1];
+  const planEndDate = value.planEndDate ?? lastDay?.date ?? inferGeneratedPlanEndDate(value);
+
+  return Boolean(planEndDate && getTodayDateKey() > planEndDate);
+}
+
+function inferGeneratedPlanEndDate(value: StoredAppState) {
+  if (!value.generatedAt) return undefined;
+  const generatedDate = new Date(value.generatedAt);
+  if (Number.isNaN(generatedDate.getTime())) return undefined;
+
+  const start = startOfLocalDay(generatedDate);
+  const daysUntilSunday = start.getDay() === 0 ? 0 : 7 - start.getDay();
+  return toLocalDateKey(addLocalDays(start, daysUntilSunday));
+}
+
+function getTodayDateKey() {
+  return toLocalDateKey(new Date());
+}
+
+function getTodayDayLabel() {
+  return getLocalDayLabel(new Date());
+}
+
+function startOfLocalDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function addLocalDays(date: Date, days: number) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+}
+
+function getLocalDayLabel(date: Date): DayLabel {
+  const labels: DayLabel[] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  return labels[date.getDay()];
+}
+
+function toLocalDateKey(date: Date) {
+  const year = String(date.getFullYear());
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function displaySafeMotifs(motifs: string[]) {

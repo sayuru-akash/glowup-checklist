@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { noStoreHeaders } from "@/lib/http";
-import type { FontKey, ThemeSpec, WeeklyPlan } from "@/lib/types";
+import type { FontKey, ThemeSpec, VibeKey, WeeklyPlan } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+
+const DateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const DayLabelSchema = z.enum(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]);
 
 const BodySchema = z.object({
   vibe: z.enum(["soft-pop", "clean-reset", "main-character", "study-core", "power-mode"]),
@@ -17,8 +20,19 @@ const BodySchema = z.object({
   style: answerText(500),
   blockers: answerText(800),
   weeklyWin: answerText(800),
-  intensity: z.enum(["soft", "balanced", "ambitious"]).default("balanced")
+  intensity: z.enum(["soft", "balanced", "ambitious"]).default("balanced"),
+  planStartDate: DateSchema.optional(),
+  planEndDate: DateSchema.optional(),
+  dayLabels: z.array(DayLabelSchema).min(1).max(7).optional()
 });
+
+type PlanInputDraft = z.infer<typeof BodySchema>;
+type DayLabel = z.infer<typeof DayLabelSchema>;
+type PlannerInput = Omit<PlanInputDraft, "planStartDate" | "planEndDate" | "dayLabels"> & {
+  planStartDate: string;
+  planEndDate: string;
+  dayLabels: DayLabel[];
+};
 
 export async function POST(request: Request) {
   const parsed = BodySchema.safeParse(await request.json().catch(() => null));
@@ -32,6 +46,7 @@ export async function POST(request: Request) {
   }
 
   try {
+    const input = withPlanWindow(parsed.data);
     const model = process.env.GEMINI_TEXT_MODEL || "gemini-3-flash-preview";
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
       method: "POST",
@@ -43,7 +58,7 @@ export async function POST(request: Request) {
         contents: [
           {
             role: "user",
-            parts: [{ text: buildPlannerPrompt(parsed.data) }]
+            parts: [{ text: buildPlannerPrompt(input) }]
           }
         ],
         generationConfig: {
@@ -66,7 +81,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "AI returned no plan text." }, { status: 502, headers: noStoreHeaders });
     }
 
-    const generated = normalizePlan(JSON.parse(text), parsed.data);
+    const generated = normalizePlan(JSON.parse(text), input);
     return NextResponse.json({ plan: generated, source: "ai" }, { headers: noStoreHeaders });
   } catch (error) {
     return NextResponse.json(
@@ -86,7 +101,28 @@ function formatSetupValidationError(error: z.ZodError) {
   return `Setup answers need a quick check: ${fields.join(", ")}.`;
 }
 
-function buildPlannerPrompt(input: z.infer<typeof BodySchema>) {
+function withPlanWindow(input: PlanInputDraft): PlannerInput {
+  if (input.planStartDate && input.planEndDate && input.dayLabels?.length) {
+    return { ...input, planStartDate: input.planStartDate, planEndDate: input.planEndDate, dayLabels: input.dayLabels };
+  }
+
+  return { ...input, ...buildServerPlanWindow() };
+}
+
+function buildServerPlanWindow(): Pick<PlannerInput, "planStartDate" | "planEndDate" | "dayLabels"> {
+  const now = new Date();
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const daysUntilSunday = start.getUTCDay() === 0 ? 0 : 7 - start.getUTCDay();
+  const dayLabels = Array.from({ length: daysUntilSunday + 1 }, (_, index) => getUtcDayLabel(addUtcDays(start, index)));
+
+  return {
+    planStartDate: toDateKey(start),
+    planEndDate: toDateKey(addUtcDays(start, daysUntilSunday)),
+    dayLabels
+  };
+}
+
+function buildPlannerPrompt(input: PlannerInput) {
   return `Return only valid JSON for a weekly glow-up checklist web app.
 Use compact, high-quality output. No markdown.
 User setup:
@@ -102,6 +138,8 @@ User setup:
 - blockers: ${input.blockers || "consistency"}
 - weekly win: ${input.weeklyWin || "feel more put together"}
 - intensity: ${input.intensity}
+- plan window: ${input.planStartDate} to ${input.planEndDate}
+- days to generate: ${input.dayLabels.join(", ")}
 
 JSON shape:
 {
@@ -144,7 +182,8 @@ JSON shape:
   "imagePrompt": "single polished image prompt under 105 words for the main poster/avatar artwork",
   "backgroundPrompt": "single polished image prompt under 80 words for an abstract glassy app background"
 }
-Rules: exactly 7 days Mon-Sun. ${input.intensity === "soft" ? "5" : input.intensity === "ambitious" ? "7" : "6"} tasks per day. Make tasks practical, varied, inclusive, low-friction, and editable. Avoid medical claims, shame, and perfectionism.
+Rules: exactly ${input.dayLabels.length} days. ${input.intensity === "soft" ? "5" : input.intensity === "ambitious" ? "7" : "6"} tasks per day. Make tasks practical, varied, inclusive, low-friction, and editable. Avoid medical claims, shame, and perfectionism.
+Actually generate exactly these ${input.dayLabels.length} day objects, in this order only: ${input.dayLabels.join(", ")}. Do not include days before ${input.dayLabels[0]} or after ${input.dayLabels.at(-1)}.
 Pick the final theme, colors, fonts, motifs, and icon style from the user's full setup. Treat their first vibe and artwork choice as starting directions, not commands.
 Do not use blobs, bokeh, gradient orbs, or orb motifs anywhere. Prefer concrete motifs like glass, ribbon, chrome, notebook, pearl, star, moon, grid, bow, light, sticker, or room.
 Palette must be app-usable: strong text contrast, light-friendly, not a one-note monochrome palette, and all values must be six-digit hex.
@@ -152,9 +191,9 @@ imagePrompt should request a tasteful original cartoon/anime/editorial character
 backgroundPrompt should be a soft abstract version of the same theme for a web app background: translucent glass panels, airy depth, low-contrast, matching palette, no readable text, no faces, no busy objects.`;
 }
 
-function normalizePlan(raw: Partial<WeeklyPlan> & { themeName?: string; themeVibe?: unknown }, input: z.infer<typeof BodySchema>): WeeklyPlan {
-  if (!Array.isArray(raw.days) || raw.days.length !== 7) {
-    throw new Error("Plan must include exactly 7 days.");
+function normalizePlan(raw: Partial<WeeklyPlan> & { themeName?: string; themeVibe?: unknown }, input: PlannerInput): WeeklyPlan {
+  if (!Array.isArray(raw.days) || raw.days.length !== input.dayLabels.length) {
+    throw new Error(`Plan must include exactly ${input.dayLabels.length} days.`);
   }
 
   const theme = requireTheme(raw.theme);
@@ -174,20 +213,40 @@ function normalizePlan(raw: Partial<WeeklyPlan> & { themeName?: string; themeVib
       }
 
       return {
-      id: `day-${dayIndex}`,
-      label: requireString(day.label, `days.${dayIndex}.label`, 8),
-      focus: requireString(day.focus, `days.${dayIndex}.focus`, 48),
-      affirmation: requireString(day.affirmation, `days.${dayIndex}.affirmation`, 100),
-      tasks: day.tasks.slice(0, 8).map((task, taskIndex) => ({
-        id: `day-${dayIndex}-task-${taskIndex}`,
-        label: requireString(task.label, `days.${dayIndex}.tasks.${taskIndex}.label`, 90),
-        detail: typeof task.detail === "string" ? task.detail.slice(0, 90) : "",
-        category: requireCategory(task.category, `days.${dayIndex}.tasks.${taskIndex}.category`),
-        completed: false
-      }))
-    };
+        id: `day-${dayIndex}`,
+        label: input.dayLabels[dayIndex],
+        date: addDays(input.planStartDate, dayIndex),
+        focus: requireString(day.focus, `days.${dayIndex}.focus`, 48),
+        affirmation: requireString(day.affirmation, `days.${dayIndex}.affirmation`, 100),
+        tasks: day.tasks.slice(0, 8).map((task, taskIndex) => ({
+          id: `day-${dayIndex}-task-${taskIndex}`,
+          label: requireString(task.label, `days.${dayIndex}.tasks.${taskIndex}.label`, 90),
+          detail: typeof task.detail === "string" ? task.detail.slice(0, 90) : "",
+          category: requireCategory(task.category, `days.${dayIndex}.tasks.${taskIndex}.category`),
+          completed: false
+        }))
+      };
     })
   };
+}
+
+function addUtcDays(date: Date, days: number) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + days));
+}
+
+function getUtcDayLabel(date: Date): DayLabel {
+  const labels: DayLabel[] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  return labels[date.getUTCDay()];
+}
+
+function toDateKey(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function addDays(date: string, days: number) {
+  const [year, month, day] = date.split("-").map(Number);
+  const next = new Date(Date.UTC(year, month - 1, day + days));
+  return next.toISOString().slice(0, 10);
 }
 
 function requireTheme(value: unknown): ThemeSpec {
@@ -233,7 +292,7 @@ function requireVibe(value: unknown) {
     typeof value === "string" &&
     ["soft-pop", "clean-reset", "main-character", "study-core", "power-mode"].includes(value)
   ) {
-    return value as z.infer<typeof BodySchema>["vibe"];
+    return value as VibeKey;
   }
 
   throw new Error("Invalid theme.vibe.");
