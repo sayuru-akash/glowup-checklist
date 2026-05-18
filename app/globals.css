@@ -22,6 +22,8 @@ body {
   margin: 0;
   background: var(--bg, #f4e9ff);
   color: var(--ink, #26194a);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 button,
@@ -136,8 +138,8 @@ button:disabled {
   background-image: var(--generated-bg);
   background-position: center;
   background-size: cover;
-  opacity: 0.34;
-  filter: saturate(1.05) contrast(0.96);
+  opacity: 0.24;
+  filter: saturate(0.98) contrast(0.94) blur(0.5px);
   transform: scale(1.02);
 }
 
@@ -148,9 +150,9 @@ button:disabled {
   z-index: 0;
   pointer-events: none;
   background:
-    linear-gradient(120deg, color-mix(in srgb, var(--surface) 30%, transparent), transparent 46%),
-    linear-gradient(245deg, color-mix(in srgb, var(--surface-strong) 24%, transparent), transparent 52%),
-    color-mix(in srgb, var(--bg) 34%, transparent);
+    linear-gradient(120deg, color-mix(in srgb, var(--surface) 42%, transparent), transparent 46%),
+    linear-gradient(245deg, color-mix(in srgb, var(--surface-strong) 32%, transparent), transparent 52%),
+    color-mix(in srgb, var(--bg) 48%, transparent);
 }
 
 .topbar {
@@ -328,8 +330,10 @@ button:disabled {
 .checklist-panel,
 .side-panel {
   border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
-  background: color-mix(in srgb, var(--surface) 78%, transparent);
-  box-shadow: 0 24px 80px color-mix(in srgb, var(--ink) 12%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, white 12%, transparent), transparent),
+    color-mix(in srgb, var(--surface) 90%, transparent);
+  box-shadow: 0 24px 80px color-mix(in srgb, var(--ink) 10%, transparent);
   -webkit-backdrop-filter: blur(18px) saturate(1.12);
   backdrop-filter: blur(18px);
 }
@@ -475,7 +479,7 @@ button:disabled {
   border-radius: 22px;
   padding: 18px;
   outline: none;
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface) 96%, white);
   color: var(--ink);
   font-size: 1rem;
   line-height: 1.55;
@@ -915,7 +919,7 @@ blockquote svg {
   display: grid;
   align-items: center;
   border-radius: 20px;
-  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  background: color-mix(in srgb, var(--surface) 94%, white);
 }
 
 .day-note {
@@ -978,6 +982,7 @@ blockquote svg {
   outline: none;
   background: transparent;
   color: var(--ink);
+  -webkit-text-fill-color: var(--ink);
 }
 
 .task-row input {
@@ -997,6 +1002,7 @@ blockquote svg {
 .task-detail-input {
   padding: 2px 6px 5px;
   color: var(--muted) !important;
+  -webkit-text-fill-color: var(--muted);
   font-size: 0.8rem !important;
   font-weight: 760 !important;
 }
@@ -1014,7 +1020,7 @@ blockquote svg {
   border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   border-radius: 999px;
   outline: none;
-  background: color-mix(in srgb, var(--surface) 76%, transparent);
+  background: color-mix(in srgb, var(--surface) 92%, white);
   color: var(--muted);
   font-size: 0.76rem;
   font-weight: 850;

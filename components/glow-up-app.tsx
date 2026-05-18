@@ -180,14 +180,14 @@ export function GlowUpApp() {
       const parsed = safelyParseStoredState(stored);
       const response = await fetch("/api/auth/me", { cache: "no-store" });
       const { profile } = (await response.json()) as { profile: UserProfile | null };
-      if (profile) {
+      if (profile?.authMode === "google") {
         await hydrateGoogleState(profile);
       } else {
-        setState(parsed?.profile?.authMode === "preview" ? parsed : null);
-        if (parsed?.profile?.authMode === "preview") {
-          if (parsed.answers) setAnswers(parsed.answers);
-          if (typeof parsed.setupStep === "number") setStep(parsed.setupStep);
-        }
+        setSyncError("");
+        const previewState = parsed?.profile?.authMode === "preview" ? parsed : profile?.authMode === "preview" ? { profile } : null;
+        setState(previewState);
+        if (previewState?.answers) setAnswers(previewState.answers);
+        if (typeof previewState?.setupStep === "number") setStep(previewState.setupStep);
       }
       setBooted(true);
     }
@@ -266,6 +266,8 @@ export function GlowUpApp() {
     const payload = (await savedResponse.json().catch(() => null)) as { state?: StoredAppState; error?: string } | null;
     if (!savedResponse.ok) {
       setSyncError(formatUserError(payload?.error || "Database sync is not ready."));
+    } else {
+      setSyncError("");
     }
     const saved = payload?.state ? { ...payload.state, profile } : null;
     const nextState = saved ?? { profile, ...draft };
