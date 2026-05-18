@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { noStoreHeaders } from "@/lib/http";
 import { imageStorageConfigured, storeGeneratedImage } from "@/lib/image-storage";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 const BodySchema = z.object({
   prompt: z.string().min(20).max(1200),
@@ -18,15 +20,15 @@ type GeminiPart = {
 export async function POST(request: Request) {
   const parsed = BodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ error: "Image prompt is required." }, { status: 400 });
+    return NextResponse.json({ error: "Image prompt is required." }, { status: 400, headers: noStoreHeaders });
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return NextResponse.json({ error: "AI API key is not configured." }, { status: 503 });
+    return NextResponse.json({ error: "AI API key is not configured." }, { status: 503, headers: noStoreHeaders });
   }
   if (!imageStorageConfigured()) {
-    return NextResponse.json({ error: "Image storage is not configured." }, { status: 503 });
+    return NextResponse.json({ error: "Image storage is not configured." }, { status: 503, headers: noStoreHeaders });
   }
 
   try {
@@ -48,7 +50,7 @@ export async function POST(request: Request) {
     if (!response.ok) {
       return NextResponse.json(
         { error: "AI image request failed.", detail: await readProviderError(response) },
-        { status: 502 }
+        { status: 502, headers: noStoreHeaders }
       );
     }
 
@@ -59,16 +61,16 @@ export async function POST(request: Request) {
       ? { mime: imagePart.inlineData.mimeType, data: imagePart.inlineData.data }
       : { mime: imagePart?.inline_data?.mime_type, data: imagePart?.inline_data?.data };
     if (!inline?.data) {
-      return NextResponse.json({ error: "AI returned no image data." }, { status: 502 });
+      return NextResponse.json({ error: "AI returned no image data." }, { status: 502, headers: noStoreHeaders });
     }
 
     const mime = inline.mime || "image/png";
     const image = await storeGeneratedImage({ mime, base64: inline.data, kind: parsed.data.kind });
-    return NextResponse.json({ image, source: "ai", storage: "backblaze-b2" });
+    return NextResponse.json({ image, source: "ai", storage: "backblaze-b2" }, { headers: noStoreHeaders });
   } catch (error) {
     return NextResponse.json(
       { error: "AI image output could not be read.", detail: error instanceof Error ? error.message : "Unknown error" },
-      { status: 502 }
+      { status: 502, headers: noStoreHeaders }
     );
   }
 }

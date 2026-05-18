@@ -10,8 +10,33 @@ const caveat = Caveat({ subsets: ["latin"], variable: "--font-caveat", display: 
 const patrick = Patrick_Hand({ weight: "400", subsets: ["latin"], variable: "--font-patrick", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "GlowUp Checklist",
-  description: "Generate an AI-backed weekly glow-up checklist with Google sign-in, dynamic vibes, and editable tasks."
+  metadataBase: new URL("https://glowup.chamudi.xyz"),
+  applicationName: "GlowUp Checklist",
+  title: {
+    default: "GlowUp Checklist",
+    template: "%s | GlowUp Checklist"
+  },
+  description:
+    "Generate an AI-backed weekly glow-up checklist with Google sign-in, dynamic themes, editable tasks, and saved progress.",
+  keywords: ["glow-up checklist", "weekly planner", "AI planner", "habit checklist", "routine planner"],
+  alternates: {
+    canonical: "/"
+  },
+  openGraph: {
+    title: "GlowUp Checklist",
+    description: "AI-backed weekly planner with dynamic visuals, editable tasks, and saved progress.",
+    url: "/",
+    siteName: "GlowUp Checklist",
+    images: [{ url: "/opengraph-image.png", width: 1200, height: 630, alt: "GlowUp Checklist weekly planner" }],
+    locale: "en_US",
+    type: "website"
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "GlowUp Checklist",
+    description: "AI-backed weekly planner with dynamic visuals, editable tasks, and saved progress.",
+    images: ["/twitter-image.png"]
+  }
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

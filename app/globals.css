@@ -121,8 +121,9 @@ button:disabled {
 }
 
 .app-shell {
+  isolation: isolate;
   position: relative;
-  overflow: hidden;
+  overflow-x: clip;
   padding: 22px;
   background:
     linear-gradient(145deg, color-mix(in srgb, var(--bg) 92%, white), color-mix(in srgb, var(--surface-strong) 24%, var(--bg))),
@@ -165,6 +166,13 @@ button:disabled {
   margin: 0 auto 22px;
 }
 
+.auth-grid,
+.wizard,
+.workspace {
+  position: relative;
+  z-index: 1;
+}
+
 .brand-lockup {
   display: inline-flex;
   align-items: center;
@@ -188,9 +196,20 @@ button:disabled {
   width: 38px;
   height: 38px;
   border-radius: 14px;
-  background: var(--ink);
-  color: var(--surface);
-  box-shadow: 0 12px 30px color-mix(in srgb, var(--ink) 22%, transparent);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 78%, white), var(--ink)),
+    var(--ink);
+  color: white;
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--accent-strong) 28%, transparent);
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 64%, white);
+  outline-offset: 3px;
 }
 
 .top-actions {
@@ -226,8 +245,6 @@ button:disabled {
 }
 
 .auth-grid {
-  position: relative;
-  z-index: 1;
   display: grid;
   grid-template-columns: minmax(0, 0.95fr) minmax(360px, 0.75fr);
   align-items: center;
@@ -322,6 +339,17 @@ button:disabled {
 
 .google-slot {
   min-height: 44px;
+}
+
+.auth-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  font-weight: 850;
+}
+
+.auth-error {
+  max-width: 520px;
 }
 
 .reference-board,

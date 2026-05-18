@@ -7,7 +7,7 @@ import type { UserProfile } from "@/lib/types";
 export const dynamic = "force-dynamic";
 
 export async function POST() {
-  if (process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) {
+  if (process.env.PREVIEW_AUTH_ENABLED !== "true" || process.env.NODE_ENV === "production") {
     return NextResponse.json({ error: "Preview sign-in is disabled in production." }, { status: 403, headers: noStoreHeaders });
   }
 

@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { noStoreHeaders } from "@/lib/http";
 import type { FontKey, ThemeSpec, WeeklyPlan } from "@/lib/types";
+
+export const dynamic = "force-dynamic";
 
 const BodySchema = z.object({
   vibe: z.enum(["soft-pop", "clean-reset", "main-character", "study-core", "power-mode"]),
@@ -20,12 +23,12 @@ const BodySchema = z.object({
 export async function POST(request: Request) {
   const parsed = BodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ error: "Setup answers are incomplete." }, { status: 400 });
+    return NextResponse.json({ error: "Setup answers are incomplete." }, { status: 400, headers: noStoreHeaders });
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return NextResponse.json({ error: "AI API key is not configured." }, { status: 503 });
+    return NextResponse.json({ error: "AI API key is not configured." }, { status: 503, headers: noStoreHeaders });
   }
 
   try {
@@ -53,22 +56,22 @@ export async function POST(request: Request) {
     if (!response.ok) {
       return NextResponse.json(
         { error: "AI plan request failed.", detail: await readProviderError(response) },
-        { status: 502 }
+        { status: 502, headers: noStoreHeaders }
       );
     }
 
     const data = await response.json();
     const text = data?.candidates?.[0]?.content?.parts?.find((part: { text?: string }) => part.text)?.text;
     if (!text) {
-      return NextResponse.json({ error: "AI returned no plan text." }, { status: 502 });
+      return NextResponse.json({ error: "AI returned no plan text." }, { status: 502, headers: noStoreHeaders });
     }
 
     const generated = normalizePlan(JSON.parse(text), parsed.data);
-    return NextResponse.json({ plan: generated, source: "ai" });
+    return NextResponse.json({ plan: generated, source: "ai" }, { headers: noStoreHeaders });
   } catch (error) {
     return NextResponse.json(
       { error: "AI plan output could not be parsed.", detail: error instanceof Error ? error.message : "Unknown error" },
-      { status: 502 }
+      { status: 502, headers: noStoreHeaders }
     );
   }
 }

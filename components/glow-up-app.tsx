@@ -7,6 +7,7 @@ import {
   Camera,
   Check,
   ChevronRight,
+  Clover,
   Droplets,
   Dumbbell,
   Edit3,
@@ -45,8 +46,11 @@ declare global {
   }
 }
 
-const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 const storageKey = "glowup-checklist-state-v1";
+type AppConfig = {
+  googleClientId: string;
+  previewAuthEnabled: boolean;
+};
 
 const questionSteps = [
   {
@@ -171,14 +175,32 @@ export function GlowUpApp() {
   const [generationError, setGenerationError] = useState("");
   const [imageError, setImageError] = useState("");
   const [backgroundImageError, setBackgroundImageError] = useState("");
+  const [authError, setAuthError] = useState("");
   const [syncError, setSyncError] = useState("");
+  const [appConfig, setAppConfig] = useState<AppConfig>({ googleClientId: "", previewAuthEnabled: false });
   const [lightbox, setLightbox] = useState<{ src: string; label: string } | null>(null);
+
+  useEffect(() => {
+    document.documentElement.style.background = activeTheme.palette.background;
+    document.body.style.background = activeTheme.palette.background;
+  }, [activeTheme.palette.background]);
+
+  useEffect(() => {
+    if (!lightbox) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setLightbox(null);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [lightbox]);
 
   useEffect(() => {
     async function boot() {
       const stored = window.localStorage.getItem(storageKey);
       const parsed = safelyParseStoredState(stored);
-      const response = await fetch("/api/auth/me", { cache: "no-store" });
+      const [configResponse, response] = await Promise.all([fetch("/api/config", { cache: "no-store" }), fetch("/api/auth/me", { cache: "no-store" })]);
+      const config = (await configResponse.json().catch(() => null)) as AppConfig | null;
+      if (configResponse.ok && config) setAppConfig(config);
       const { profile } = (await response.json()) as { profile: UserProfile | null };
       if (profile?.authMode === "google") {
         await hydrateGoogleState(profile);
@@ -191,7 +213,13 @@ export function GlowUpApp() {
       }
       setBooted(true);
     }
-    boot().catch(() => setBooted(true));
+    boot().catch(() => {
+      const stored = window.localStorage.getItem(storageKey);
+      const parsed = safelyParseStoredState(stored);
+      setState(parsed?.profile?.authMode === "preview" ? parsed : null);
+      setAuthError("Session check failed. Refresh once, then sign in again if it continues.");
+      setBooted(true);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -245,23 +273,34 @@ export function GlowUpApp() {
   }, [backgroundImageError, generationError, imageBusy, imageError, plan, state?.generatedBackgroundImage, state?.generatedImage]);
 
   async function signInPreview() {
+    setAuthError("");
     const response = await fetch("/api/auth/preview", { method: "POST" });
-    const { profile } = (await response.json()) as { profile: UserProfile };
+    const payload = (await response.json().catch(() => null)) as { profile?: UserProfile; error?: string } | null;
+    if (!response.ok || !payload?.profile) {
+      setAuthError(formatUserError(payload?.error || "Preview mode is not available."));
+      return;
+    }
+    const { profile } = payload;
     setState({ profile });
   }
 
   async function handleGoogleCredential(credential: string) {
+    setAuthError("");
     const response = await fetch("/api/auth/google", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ credential })
     });
-    if (!response.ok) return;
-    const { profile } = (await response.json()) as { profile: UserProfile };
-    await hydrateGoogleState(profile, { answers, setupStep: step });
+    const payload = (await response.json().catch(() => null)) as { profile?: UserProfile; error?: string; detail?: string } | null;
+    if (!response.ok || !payload?.profile) {
+      setAuthError(formatUserError([payload?.error || "Google sign-in failed.", payload?.detail].filter(Boolean).join(" ")));
+      return;
+    }
+    const localDraft = state?.profile?.authMode === "preview" ? { ...state, profile: payload.profile } : undefined;
+    await hydrateGoogleState(payload.profile, localDraft ?? { answers, setupStep: step });
   }
 
-  async function hydrateGoogleState(profile: UserProfile, draft?: Pick<StoredAppState, "answers" | "setupStep">) {
+  async function hydrateGoogleState(profile: UserProfile, draft?: Partial<StoredAppState>) {
     const savedResponse = await fetch("/api/state", { cache: "no-store" });
     const payload = (await savedResponse.json().catch(() => null)) as { state?: StoredAppState; error?: string } | null;
     if (!savedResponse.ok) {
@@ -274,6 +313,13 @@ export function GlowUpApp() {
     setState(nextState);
     if (nextState.answers) setAnswers(nextState.answers);
     if (typeof nextState.setupStep === "number") setStep(Math.min(questionSteps.length - 1, Math.max(0, nextState.setupStep)));
+    if (!saved && draft) {
+      await fetch("/api/state", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...nextState, profile })
+      }).catch(() => null);
+    }
   }
 
   function updateAnswers(nextAnswers: SetupAnswers) {
@@ -533,7 +579,7 @@ export function GlowUpApp() {
       <header className="topbar">
         <div className="brand-lockup" aria-label="GlowUp Checklist">
           <span className="brand-mark">
-            <Sparkles size={20} aria-hidden />
+            <Clover size={20} aria-hidden />
           </span>
           <span>GlowUp Checklist</span>
         </div>
@@ -563,7 +609,7 @@ export function GlowUpApp() {
       ) : null}
 
       {!state?.profile ? (
-        <AuthPanel onPreview={signInPreview} onGoogle={handleGoogleCredential} />
+        <AuthPanel config={appConfig} authError={authError} onPreview={signInPreview} onGoogle={handleGoogleCredential} />
       ) : !plan ? (
         <SetupWizard
           answers={answers}
@@ -675,6 +721,7 @@ export function GlowUpApp() {
                     key={day.id}
                     className={day.id === activeDay?.id ? "day-tab active" : "day-tab"}
                     type="button"
+                    aria-current={day.id === activeDay?.id ? "date" : undefined}
                     onClick={() => setState((current) => (current ? { ...current, activeDayId: day.id } : current))}
                   >
                     <span>{day.label}</span>
@@ -771,6 +818,7 @@ export function GlowUpApp() {
                       if (event.key === "Enter") addTask();
                     }}
                     placeholder="Add a custom tiny task"
+                    aria-label="Add a custom tiny task"
                   />
                   <button type="button" onClick={addTask} aria-label="Add task">
                     <Plus size={18} aria-hidden />
@@ -851,7 +899,7 @@ export function GlowUpApp() {
       )}
       {lightbox ? (
         <div className="image-lightbox" role="dialog" aria-modal="true" aria-label={lightbox.label}>
-          <button className="lightbox-close" type="button" onClick={() => setLightbox(null)} aria-label="Close image viewer">
+          <button autoFocus className="lightbox-close" type="button" onClick={() => setLightbox(null)} aria-label="Close image viewer">
             <X size={20} aria-hidden />
           </button>
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -865,15 +913,25 @@ export function GlowUpApp() {
   );
 }
 
-function AuthPanel({ onPreview, onGoogle }: { onPreview: () => void; onGoogle: (credential: string) => void }) {
+function AuthPanel({
+  config,
+  authError,
+  onPreview,
+  onGoogle
+}: {
+  config: AppConfig;
+  authError: string;
+  onPreview: () => void;
+  onGoogle: (credential: string) => void;
+}) {
   const [gisReady, setGisReady] = useState(false);
 
   useEffect(() => {
-    if (!gisReady || !clientId || !window.google?.accounts?.id) return;
+    if (!gisReady || !config.googleClientId || !window.google?.accounts?.id) return;
     const button = document.getElementById("googleSignInButton");
     if (!button) return;
     window.google.accounts.id.initialize({
-      client_id: clientId,
+      client_id: config.googleClientId,
       callback: ({ credential }) => onGoogle(credential)
     });
     button.innerHTML = "";
@@ -884,7 +942,7 @@ function AuthPanel({ onPreview, onGoogle }: { onPreview: () => void; onGoogle: (
       text: "continue_with",
       width: 280
     });
-  }, [gisReady, onGoogle]);
+  }, [config.googleClientId, gisReady, onGoogle]);
 
   return (
     <section className="auth-grid">
@@ -894,17 +952,25 @@ function AuthPanel({ onPreview, onGoogle }: { onPreview: () => void; onGoogle: (
         <h1>Your glow-up week.</h1>
         <p>Sign in, answer the vibe prompts, then edit the plan and visuals until it feels like you.</p>
         <div className="auth-actions">
-          {clientId ? <div id="googleSignInButton" className="google-slot" /> : null}
-          <button className="primary-button" type="button" onClick={onPreview}>
-            <Sparkles size={18} aria-hidden />
-            Try preview mode
-          </button>
+          {config.googleClientId ? <div id="googleSignInButton" className="google-slot" /> : <p className="auth-note">Google sign-in is not configured.</p>}
+          {config.previewAuthEnabled ? (
+            <button className="primary-button" type="button" onClick={onPreview}>
+              <Sparkles size={18} aria-hidden />
+              Try preview mode
+            </button>
+          ) : null}
         </div>
+        {authError ? (
+          <div className="error-banner auth-error" role="alert">
+            <Bot size={18} aria-hidden />
+            <span>{authError}</span>
+          </div>
+        ) : null}
       </div>
       <div className="reference-board" aria-label="Glow-up preview board">
         <div className="sticker one">You got this</div>
         <div className="board-title">
-          <Sparkles aria-hidden />
+          <Clover aria-hidden />
           <span>Weekly</span>
           <strong>Glow-Up</strong>
         </div>
@@ -975,6 +1041,7 @@ function SetupWizard({
                 key={preset.vibe}
                 className={answers.vibe === preset.vibe ? "vibe-choice selected" : "vibe-choice"}
                 type="button"
+                aria-pressed={answers.vibe === preset.vibe}
                 onClick={() => setAnswers({ ...answers, vibe: preset.vibe })}
                 style={{ "--choice": preset.palette.accent, "--choice-bg": preset.palette.surfaceStrong } as React.CSSProperties}
               >
@@ -990,6 +1057,7 @@ function SetupWizard({
                 key={intensity}
                 className={answers.intensity === intensity ? "intensity selected" : "intensity"}
                 type="button"
+                aria-pressed={answers.intensity === intensity}
                 onClick={() => setAnswers({ ...answers, intensity })}
               >
                 <span>{intensity}</span>
@@ -1004,6 +1072,7 @@ function SetupWizard({
                 key={choice.value}
                 className={answers.artStyle === choice.value ? "art-style-choice selected" : "art-style-choice"}
                 type="button"
+                aria-pressed={answers.artStyle === choice.value}
                 onClick={() => setAnswers({ ...answers, artStyle: choice.value })}
               >
                 <span>{choice.label}</span>
@@ -1016,6 +1085,7 @@ function SetupWizard({
             value={answers[current.key as keyof SetupAnswers] as string}
             onChange={(event) => setAnswers({ ...answers, [current.key]: event.target.value })}
             placeholder={"placeholder" in current ? current.placeholder : undefined}
+            aria-label={current.title}
             rows={5}
           />
         )}
