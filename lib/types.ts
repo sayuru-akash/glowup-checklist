@@ -79,6 +79,7 @@ export type WeeklyPlan = {
 export type StoredAppState = {
   profile: UserProfile;
   answers?: SetupAnswers;
+  setupStep?: number;
   plan?: WeeklyPlan;
   activeDayId?: string;
   generatedImage?: string;

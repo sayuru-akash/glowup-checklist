@@ -19,7 +19,7 @@ Production paths use:
 - signed HTTP-only session cookie
 - Google AI `generateContent` for weekly plans
 - Google AI image generation for vibe artwork
-- Vercel Blob object storage for generated poster/background images
+- Backblaze B2 object storage for generated poster/background images
 - Postgres persistence for signed-in account state
 
 ## Google configuration
@@ -63,13 +63,27 @@ The schema creates `glow_users` and `glow_states` only.
 
 ## Image storage
 
-Generated artwork is uploaded to Vercel Blob and the app stores only the returned image URL in account state. Set:
+Generated artwork is uploaded to Backblaze B2 through the S3-compatible API. By default, the bucket can stay private: the app stores a same-origin `/api/media` URL and streams the image from B2 when the browser displays it.
+
+Backblaze setup requirements:
+
+- Create a private B2 bucket that is S3-compatible.
+- Create a non-master application key for that bucket.
+- Give the key write/read/delete file permissions plus `listAllBucketNames` for SDK compatibility when the key is bucket-restricted.
+- Use the bucket's S3 endpoint, for example `https://s3.us-west-004.backblazeb2.com`; the region is the middle part, for example `us-west-004`.
+
+Set:
 
 ```bash
-BLOB_READ_WRITE_TOKEN=...
+B2_BUCKET=
+B2_ENDPOINT=https://s3.us-west-004.backblazeb2.com
+B2_REGION=us-west-004
+B2_KEY_ID=
+B2_APPLICATION_KEY=
+B2_PUBLIC_BASE_URL=
 ```
 
-The image API returns an error when Blob storage is not configured. It does not return base64 images as a production fallback.
+`B2_PUBLIC_BASE_URL` is optional. Use it when you want the bucket's Friendly URL origin or CDN URL, for example `https://f000.backblazeb2.com/file/your-bucket`. The image API returns an error when B2 storage is not configured. It does not return base64 images as a production fallback.
 
 ## Vercel
 
@@ -83,7 +97,12 @@ GEMINI_API_KEY=
 GEMINI_TEXT_MODEL=gemini-3-flash-preview
 GEMINI_IMAGE_MODEL=gemini-2.5-flash-image
 DATABASE_URL=
-BLOB_READ_WRITE_TOKEN=
+B2_BUCKET=
+B2_ENDPOINT=
+B2_REGION=
+B2_KEY_ID=
+B2_APPLICATION_KEY=
+B2_PUBLIC_BASE_URL=
 ```
 
 After deployment, add the deployed Vercel origin to the Google OAuth web client's Authorized JavaScript origins.

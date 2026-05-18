@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { buildThemeFromVibe } from "@/lib/theme";
-import type { WeeklyPlan } from "@/lib/types";
+import type { FontKey, ThemeSpec, WeeklyPlan } from "@/lib/types";
 
 const BodySchema = z.object({
   vibe: z.enum(["soft-pop", "clean-reset", "main-character", "study-core", "power-mode"]),
@@ -97,8 +96,28 @@ JSON shape:
   "subtitle": "short subtitle",
   "note": "short note about user's schedule",
   "weeklyMantra": "one sentence",
-  "themeVibe": "soft-pop|clean-reset|main-character|study-core|power-mode",
-  "themeName": "2-4 words",
+  "theme": {
+    "name": "2-4 words",
+    "vibe": "soft-pop|clean-reset|main-character|study-core|power-mode",
+    "palette": {
+      "background": "#hex",
+      "surface": "#hex",
+      "surfaceStrong": "#hex",
+      "ink": "#hex",
+      "muted": "#hex",
+      "accent": "#hex",
+      "accentStrong": "#hex",
+      "highlight": "#hex",
+      "border": "#hex"
+    },
+    "fonts": {
+      "display": "nunito|outfit|jakarta|fraunces",
+      "body": "nunito|outfit|jakarta",
+      "handwriting": "caveat|patrick"
+    },
+    "motifs": ["single word", "single word", "single word"],
+    "iconStyle": "rounded|spark|sharp|soft"
+  },
   "days": [
     {
       "label": "Mon",
@@ -113,9 +132,10 @@ JSON shape:
   "backgroundPrompt": "single polished image prompt under 80 words for an abstract glassy app background"
 }
 Rules: exactly 7 days Mon-Sun. ${input.intensity === "soft" ? "5" : input.intensity === "ambitious" ? "7" : "6"} tasks per day. Make tasks practical, varied, inclusive, low-friction, and editable. Avoid medical claims, shame, and perfectionism.
-Pick themeVibe yourself from the user's full setup. Treat their first vibe as a starting direction, not a command.
+Pick the final theme, colors, fonts, motifs, and icon style from the user's full setup. Treat their first vibe and artwork choice as starting directions, not commands.
+Palette must be app-usable: strong text contrast, light-friendly, not a one-note monochrome palette, and all values must be six-digit hex.
 imagePrompt should request a tasteful original cartoon/anime/editorial character, named persona, or poster based on the user's description. It may use a user-provided personal name/persona name as the character name, but must not copy a real public figure, celebrity likeness, brand logo, or copyrighted character.
-backgroundPrompt should be a soft abstract version of the same theme for a web app background: translucent glass, airy depth, low-contrast, no readable text, no faces, no busy objects.`;
+backgroundPrompt should be a soft abstract version of the same theme for a web app background: translucent glass panels, airy depth, low-contrast, matching palette, no readable text, no faces, no busy objects.`;
 }
 
 function normalizePlan(raw: Partial<WeeklyPlan> & { themeName?: string; themeVibe?: unknown }, input: z.infer<typeof BodySchema>): WeeklyPlan {
@@ -123,7 +143,7 @@ function normalizePlan(raw: Partial<WeeklyPlan> & { themeName?: string; themeVib
     throw new Error("Plan must include exactly 7 days.");
   }
 
-  const theme = buildThemeFromVibe(requireVibe(raw.themeVibe, input.vibe), raw.themeName || raw.title || "Glow Week");
+  const theme = requireTheme(raw.theme);
   const taskTarget = input.intensity === "soft" ? 5 : input.intensity === "ambitious" ? 7 : 6;
 
   return {
@@ -157,7 +177,45 @@ function normalizePlan(raw: Partial<WeeklyPlan> & { themeName?: string; themeVib
   };
 }
 
-function requireVibe(value: unknown, fallback: z.infer<typeof BodySchema>["vibe"]) {
+function requireTheme(value: unknown): ThemeSpec {
+  if (!value || typeof value !== "object") {
+    throw new Error("Missing theme.");
+  }
+  const theme = value as Partial<ThemeSpec>;
+  const palette = theme.palette;
+  const fonts = theme.fonts;
+  if (!palette || typeof palette !== "object") {
+    throw new Error("Missing theme.palette.");
+  }
+  if (!fonts || typeof fonts !== "object") {
+    throw new Error("Missing theme.fonts.");
+  }
+
+  return {
+    name: requireString(theme.name, "theme.name", 42),
+    vibe: requireVibe(theme.vibe),
+    palette: {
+      background: requireHexColor(palette.background, "theme.palette.background"),
+      surface: requireHexColor(palette.surface, "theme.palette.surface"),
+      surfaceStrong: requireHexColor(palette.surfaceStrong, "theme.palette.surfaceStrong"),
+      ink: requireHexColor(palette.ink, "theme.palette.ink"),
+      muted: requireHexColor(palette.muted, "theme.palette.muted"),
+      accent: requireHexColor(palette.accent, "theme.palette.accent"),
+      accentStrong: requireHexColor(palette.accentStrong, "theme.palette.accentStrong"),
+      highlight: requireHexColor(palette.highlight, "theme.palette.highlight"),
+      border: requireHexColor(palette.border, "theme.palette.border")
+    },
+    fonts: {
+      display: requireFont(fonts.display, "theme.fonts.display", ["nunito", "outfit", "jakarta", "fraunces"]),
+      body: requireFont(fonts.body, "theme.fonts.body", ["nunito", "outfit", "jakarta"]),
+      handwriting: requireFont(fonts.handwriting, "theme.fonts.handwriting", ["caveat", "patrick"])
+    },
+    motifs: requireMotifs(theme.motifs),
+    iconStyle: requireIconStyle(theme.iconStyle)
+  };
+}
+
+function requireVibe(value: unknown) {
   if (
     typeof value === "string" &&
     ["soft-pop", "clean-reset", "main-character", "study-core", "power-mode"].includes(value)
@@ -165,7 +223,7 @@ function requireVibe(value: unknown, fallback: z.infer<typeof BodySchema>["vibe"
     return value as z.infer<typeof BodySchema>["vibe"];
   }
 
-  return fallback;
+  throw new Error("Invalid theme.vibe.");
 }
 
 function requireString(value: unknown, field: string, maxLength: number) {
@@ -174,6 +232,38 @@ function requireString(value: unknown, field: string, maxLength: number) {
   }
 
   return value.trim().slice(0, maxLength);
+}
+
+function requireHexColor(value: unknown, field: string) {
+  if (typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value.trim())) {
+    return value.trim();
+  }
+
+  throw new Error(`Invalid ${field}.`);
+}
+
+function requireFont(value: unknown, field: string, allowed: FontKey[]) {
+  if (typeof value === "string" && allowed.includes(value as FontKey)) {
+    return value as FontKey;
+  }
+
+  throw new Error(`Invalid ${field}.`);
+}
+
+function requireMotifs(value: unknown) {
+  if (!Array.isArray(value) || value.length < 2) {
+    throw new Error("Missing theme.motifs.");
+  }
+
+  return value.slice(0, 5).map((item, index) => requireString(item, `theme.motifs.${index}`, 28));
+}
+
+function requireIconStyle(value: unknown): ThemeSpec["iconStyle"] {
+  if (typeof value === "string" && ["rounded", "spark", "sharp", "soft"].includes(value)) {
+    return value as ThemeSpec["iconStyle"];
+  }
+
+  throw new Error("Invalid theme.iconStyle.");
 }
 
 function requireCategory(value: unknown, field: string): WeeklyPlan["days"][number]["tasks"][number]["category"] {

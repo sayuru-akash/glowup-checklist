@@ -2,8 +2,11 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { clearUserState, databaseConfigured, ensureSchema, loadUserState, saveUserState, upsertUser } from "@/lib/db";
+import { noStoreHeaders } from "@/lib/http";
 import { readSessionToken, sessionCookieName } from "@/lib/session";
 import type { StoredAppState } from "@/lib/types";
+
+export const dynamic = "force-dynamic";
 
 const StateSchema = z.object({
   profile: z.object({
@@ -14,6 +17,7 @@ const StateSchema = z.object({
     authMode: z.literal("google")
   }),
   answers: z.unknown().optional(),
+  setupStep: z.number().int().min(0).max(20).optional(),
   plan: z.unknown().optional(),
   activeDayId: z.string().optional(),
   generatedImage: z.string().optional(),
@@ -32,12 +36,12 @@ export async function GET() {
   if ("error" in session) return session.error;
 
   if (!databaseConfigured()) {
-    return NextResponse.json({ error: "DATABASE_URL is not configured." }, { status: 503 });
+    return NextResponse.json({ error: "DATABASE_URL is not configured." }, { status: 503, headers: noStoreHeaders });
   }
 
   await ensureSchema();
   const state = await loadUserState(session.profile.id);
-  return NextResponse.json({ state });
+  return NextResponse.json({ state }, { headers: noStoreHeaders });
 }
 
 export async function PUT(request: Request) {
@@ -45,12 +49,12 @@ export async function PUT(request: Request) {
   if ("error" in session) return session.error;
 
   if (!databaseConfigured()) {
-    return NextResponse.json({ error: "DATABASE_URL is not configured." }, { status: 503 });
+    return NextResponse.json({ error: "DATABASE_URL is not configured." }, { status: 503, headers: noStoreHeaders });
   }
 
   const parsed = StateSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ error: "State payload is invalid." }, { status: 400 });
+    return NextResponse.json({ error: "State payload is invalid." }, { status: 400, headers: noStoreHeaders });
   }
 
   const state = parsed.data as StoredAppState;
@@ -65,7 +69,7 @@ export async function PUT(request: Request) {
   await upsertUser(session.profile);
   await saveUserState(session.profile.id, normalized);
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true }, { headers: noStoreHeaders });
 }
 
 export async function DELETE() {
@@ -73,19 +77,19 @@ export async function DELETE() {
   if ("error" in session) return session.error;
 
   if (!databaseConfigured()) {
-    return NextResponse.json({ error: "DATABASE_URL is not configured." }, { status: 503 });
+    return NextResponse.json({ error: "DATABASE_URL is not configured." }, { status: 503, headers: noStoreHeaders });
   }
 
   await ensureSchema();
   await clearUserState(session.profile.id);
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true }, { headers: noStoreHeaders });
 }
 
 async function requireSession() {
   const cookieStore = await cookies();
   const profile = await readSessionToken(cookieStore.get(sessionCookieName())?.value);
   if (!profile || profile.authMode !== "google") {
-    return { error: NextResponse.json({ error: "Google sign-in is required." }, { status: 401 }) };
+    return { error: NextResponse.json({ error: "Google sign-in is required." }, { status: 401, headers: noStoreHeaders }) };
   }
 
   return { profile };

@@ -64,7 +64,7 @@ export async function POST(request: Request) {
 
     const mime = inline.mime || "image/png";
     const image = await storeGeneratedImage({ mime, base64: inline.data, kind: parsed.data.kind });
-    return NextResponse.json({ image, source: "ai", storage: "vercel-blob" });
+    return NextResponse.json({ image, source: "ai", storage: "backblaze-b2" });
   } catch (error) {
     return NextResponse.json(
       { error: "AI image output could not be read.", detail: error instanceof Error ? error.message : "Unknown error" },

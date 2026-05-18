@@ -10,9 +10,10 @@ import {
   Droplets,
   Dumbbell,
   Edit3,
+  ImageIcon,
   Heart,
-  Leaf,
   LogOut,
+  Maximize2,
   Moon,
   Plus,
   RefreshCw,
@@ -22,7 +23,8 @@ import {
   Star,
   Sun,
   Trash2,
-  WandSparkles
+  WandSparkles,
+  X
 } from "lucide-react";
 import Script from "next/script";
 import { useEffect, useMemo, useState } from "react";
@@ -67,8 +69,8 @@ const questionSteps = [
   },
   {
     key: "artStyle",
-    title: "Pick a visual starting point",
-    sub: "This is only the seed. AI still chooses the final character, colors, fonts, poster, and glassy background from all answers.",
+    title: "How should the artwork feel?",
+    sub: "Choose a direction or let AI blend it from your answers. Your own name, persona, style, room, and mood can shape the character.",
     type: "artStyle"
   },
   {
@@ -132,29 +134,29 @@ const categoryIcons: Record<GlowTask["category"], typeof Droplets> = {
 
 const artStyleChoices = [
   {
-    value: "soft anime planner poster",
-    label: "Soft anime glow",
-    description: "Original anime-style character, cozy planner poster, polished"
+    value: "AI picks the best original cartoon/anime/editorial style from my full setup",
+    label: "AI style me",
+    description: "Best-fit original character, palette, fonts, poster, and background"
   },
   {
-    value: "sticker scrapbook cartoon",
-    label: "Sticker diary",
-    description: "Original cartoon persona, doodles, icons, playful social-board feel"
+    value: "original anime/cartoon version of me with personal outfit, room, and routine details",
+    label: "Cartoon me",
+    description: "Personal original character with your traits and cozy routine objects"
   },
   {
-    value: "cozy room illustration",
-    label: "Cozy room scene",
-    description: "Original character in a warm desk scene with routine objects"
+    value: "cozy room illustration with glassy planner UI, lifestyle objects, soft lighting",
+    label: "Cozy room",
+    description: "Room, desk, skincare, study, or fitness details around the plan"
   },
   {
-    value: "clean editorial avatar",
-    label: "Editorial avatar",
-    description: "Original character portrait, grown-up, crisp, creator profile"
+    value: "clean editorial avatar and planner poster, modern creator profile energy",
+    label: "Editorial",
+    description: "Crisp character portrait, mature typography, polished social feel"
   },
   {
-    value: "bold social poster",
-    label: "Main-character poster",
-    description: "Original main-character poster, confident and scroll-stopping"
+    value: "bold main-character social poster with expressive original cartoon styling",
+    label: "Main character",
+    description: "Confident, scroll-stopping, still original and non-copycat"
   }
 ];
 
@@ -170,28 +172,27 @@ export function GlowUpApp() {
   const [imageError, setImageError] = useState("");
   const [backgroundImageError, setBackgroundImageError] = useState("");
   const [syncError, setSyncError] = useState("");
+  const [lightbox, setLightbox] = useState<{ src: string; label: string } | null>(null);
 
   useEffect(() => {
     async function boot() {
       const stored = window.localStorage.getItem(storageKey);
-      const parsed = stored ? (JSON.parse(stored) as StoredAppState) : null;
-      const response = await fetch("/api/auth/me");
+      const parsed = safelyParseStoredState(stored);
+      const response = await fetch("/api/auth/me", { cache: "no-store" });
       const { profile } = (await response.json()) as { profile: UserProfile | null };
       if (profile) {
-        const savedResponse = await fetch("/api/state");
-        const payload = (await savedResponse.json().catch(() => null)) as { state?: StoredAppState; error?: string } | null;
-        if (!savedResponse.ok) {
-          setSyncError(formatUserError(payload?.error || "Database sync is not ready."));
-        }
-        const saved = payload?.state ? { ...payload.state, profile } : null;
-        setState(saved ?? { profile });
-        if (saved?.answers) setAnswers(saved.answers);
+        await hydrateGoogleState(profile);
       } else {
         setState(parsed?.profile?.authMode === "preview" ? parsed : null);
+        if (parsed?.profile?.authMode === "preview") {
+          if (parsed.answers) setAnswers(parsed.answers);
+          if (typeof parsed.setupStep === "number") setStep(parsed.setupStep);
+        }
       }
       setBooted(true);
     }
     boot().catch(() => setBooted(true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -257,7 +258,31 @@ export function GlowUpApp() {
     });
     if (!response.ok) return;
     const { profile } = (await response.json()) as { profile: UserProfile };
-    setState({ profile });
+    await hydrateGoogleState(profile, { answers, setupStep: step });
+  }
+
+  async function hydrateGoogleState(profile: UserProfile, draft?: Pick<StoredAppState, "answers" | "setupStep">) {
+    const savedResponse = await fetch("/api/state", { cache: "no-store" });
+    const payload = (await savedResponse.json().catch(() => null)) as { state?: StoredAppState; error?: string } | null;
+    if (!savedResponse.ok) {
+      setSyncError(formatUserError(payload?.error || "Database sync is not ready."));
+    }
+    const saved = payload?.state ? { ...payload.state, profile } : null;
+    const nextState = saved ?? { profile, ...draft };
+    setState(nextState);
+    if (nextState.answers) setAnswers(nextState.answers);
+    if (typeof nextState.setupStep === "number") setStep(Math.min(questionSteps.length - 1, Math.max(0, nextState.setupStep)));
+  }
+
+  function updateAnswers(nextAnswers: SetupAnswers) {
+    setAnswers(nextAnswers);
+    setState((current) => (current?.profile && !current.plan ? { ...current, answers: nextAnswers } : current));
+  }
+
+  function updateSetupStep(nextStep: number) {
+    const boundedStep = Math.min(questionSteps.length - 1, Math.max(0, nextStep));
+    setStep(boundedStep);
+    setState((current) => (current?.profile && !current.plan ? { ...current, setupStep: boundedStep, answers } : current));
   }
 
   async function generatePlan(nextAnswers = answers) {
@@ -281,6 +306,7 @@ export function GlowUpApp() {
       setState({
         profile: state.profile,
         answers: nextAnswers,
+        setupStep: questionSteps.length - 1,
         plan: payload.plan,
         planSource: "ai",
         activeDayId: payload.plan.days[0]?.id,
@@ -308,7 +334,7 @@ export function GlowUpApp() {
       storage?: string;
     };
     const image = payload.image;
-    if (!response.ok || !image || payload.source !== "ai" || payload.storage !== "vercel-blob") {
+    if (!response.ok || !image || payload.source !== "ai" || payload.storage !== "backblaze-b2") {
       throw new Error(formatUserError(formatGenerationError(payload, fallback)));
     }
 
@@ -347,6 +373,45 @@ export function GlowUpApp() {
             }
           : current
       );
+    } finally {
+      setImageBusy(false);
+    }
+  }
+
+  async function refreshVisual(kind: "poster" | "background") {
+    if (!plan) return;
+    setImageBusy(true);
+    if (kind === "poster") setImageError("");
+    else setBackgroundImageError("");
+
+    try {
+      const prompt =
+        kind === "poster"
+          ? plan.imagePrompt
+          : plan.backgroundPrompt ||
+            `Create a wide abstract glass background for a ${plan.theme.name} weekly glow-up web app. No people, no readable text, no logos.`;
+      const image = await requestGeneratedImage(
+        prompt,
+        kind,
+        kind === "poster" ? "AI poster generation failed." : "AI background generation failed."
+      );
+      setState((current) =>
+        current
+          ? {
+              ...current,
+              generatedImage: kind === "poster" ? image : current.generatedImage,
+              generatedBackgroundImage: kind === "background" ? image : current.generatedBackgroundImage,
+              imageSource: kind === "poster" ? "ai" : current.imageSource,
+              backgroundImageSource: kind === "background" ? "ai" : current.backgroundImageSource,
+              imageError: kind === "poster" ? "" : current.imageError,
+              backgroundImageError: kind === "background" ? "" : current.backgroundImageError
+            }
+          : current
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "AI image generation failed.";
+      if (kind === "poster") setImageError(message);
+      else setBackgroundImageError(message);
     } finally {
       setImageBusy(false);
     }
@@ -463,9 +528,6 @@ export function GlowUpApp() {
 
   return (
     <main className={`app-shell ${fontClasses}`} style={appStyle}>
-      <div className="ambient ambient-one" />
-      <div className="ambient ambient-two" />
-
       <header className="topbar">
         <div className="brand-lockup" aria-label="GlowUp Checklist">
           <span className="brand-mark">
@@ -503,9 +565,9 @@ export function GlowUpApp() {
       ) : !plan ? (
         <SetupWizard
           answers={answers}
-          setAnswers={setAnswers}
+          setAnswers={updateAnswers}
           step={step}
-          setStep={setStep}
+          setStep={updateSetupStep}
           generating={generating}
           generationError={generationError}
           onGenerate={() => generatePlan(answers)}
@@ -548,6 +610,16 @@ export function GlowUpApp() {
                   <RefreshCw className="spin" size={16} aria-hidden />
                   <span>Refreshing visuals</span>
                 </div>
+              ) : null}
+              {state.generatedImage ? (
+                <button
+                  className="image-view-button"
+                  type="button"
+                  onClick={() => setLightbox({ src: state.generatedImage!, label: "Generated poster artwork" })}
+                >
+                  <Maximize2 size={16} aria-hidden />
+                  View
+                </button>
               ) : null}
             </div>
 
@@ -647,8 +719,35 @@ export function GlowUpApp() {
                           placeholder="Add detail"
                           aria-label="Task detail"
                         />
+                        <span className="task-controls">
+                          <select
+                            value={task.category}
+                            onChange={(event) =>
+                              updateTask(activeDay.id, task.id, { category: event.target.value as GlowTask["category"] })
+                            }
+                            aria-label="Task icon category"
+                          >
+                            {Object.keys(categoryIcons).map((category) => (
+                              <option key={category} value={category}>
+                                {category}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            className="minutes-input"
+                            type="number"
+                            min={1}
+                            max={60}
+                            value={task.minutes}
+                            onChange={(event) =>
+                              updateTask(activeDay.id, task.id, {
+                                minutes: Math.max(1, Math.min(60, Number(event.target.value) || 1))
+                              })
+                            }
+                            aria-label="Task minutes"
+                          />
+                        </span>
                       </label>
-                      <span className="minutes">{task.minutes}m</span>
                       <button
                         className="ghost-icon"
                         type="button"
@@ -696,7 +795,9 @@ export function GlowUpApp() {
                   <span key={name} style={{ background: value }} title={name} />
                 ))}
               </div>
-              <p className="tiny-copy">{activeTheme.motifs.join(" · ")}</p>
+              <p className="tiny-copy">
+                {activeTheme.motifs.join(" · ")} · {activeTheme.fonts.display} + {activeTheme.fonts.body}
+              </p>
             </section>
             <section>
               <p className="script-label">Visuals</p>
@@ -704,11 +805,35 @@ export function GlowUpApp() {
               <p className={backgroundImageError ? "tiny-copy error-copy" : "tiny-copy"}>
                 Background: {state.generatedBackgroundImage ? "ready" : backgroundImageError ? "blocked" : imageBusy ? "generating" : "pending"}
               </p>
+              {state.generatedBackgroundImage ? (
+                <button
+                  className="background-preview"
+                  type="button"
+                  onClick={() => setLightbox({ src: state.generatedBackgroundImage!, label: "Generated glass background" })}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={state.generatedBackgroundImage} alt="" />
+                  <span>
+                    <ImageIcon size={16} aria-hidden />
+                    View background
+                  </span>
+                </button>
+              ) : null}
               {imageError || backgroundImageError ? <p className="tiny-copy error-copy">{imageError || backgroundImageError}</p> : null}
               <button className="text-button full visual-refresh" type="button" onClick={() => generateVisuals(plan)} disabled={imageBusy}>
                 <RefreshCw size={16} aria-hidden />
                 Refresh visuals
               </button>
+              <div className="split-actions">
+                <button className="text-button full visual-refresh" type="button" onClick={() => refreshVisual("poster")} disabled={imageBusy}>
+                  <ImageIcon size={16} aria-hidden />
+                  Poster only
+                </button>
+                <button className="text-button full visual-refresh" type="button" onClick={() => refreshVisual("background")} disabled={imageBusy}>
+                  <Sparkles size={16} aria-hidden />
+                  Background only
+                </button>
+              </div>
             </section>
             <section className="share-card">
               <BadgeCheck size={22} aria-hidden />
@@ -722,6 +847,18 @@ export function GlowUpApp() {
           </aside>
         </section>
       )}
+      {lightbox ? (
+        <div className="image-lightbox" role="dialog" aria-modal="true" aria-label={lightbox.label}>
+          <button className="lightbox-close" type="button" onClick={() => setLightbox(null)} aria-label="Close image viewer">
+            <X size={20} aria-hidden />
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={lightbox.src} alt={lightbox.label} />
+          <a className="text-button lightbox-open" href={lightbox.src} target="_blank" rel="noreferrer">
+            Open original
+          </a>
+        </div>
+      ) : null}
     </main>
   );
 }
@@ -780,6 +917,16 @@ function AuthPanel({ onPreview, onGoogle }: { onPreview: () => void; onGoogle: (
       </div>
     </section>
   );
+}
+
+function safelyParseStoredState(value: string | null) {
+  if (!value) return null;
+  try {
+    return JSON.parse(value) as StoredAppState;
+  } catch {
+    window.localStorage.removeItem(storageKey);
+    return null;
+  }
 }
 
 function SetupWizard({

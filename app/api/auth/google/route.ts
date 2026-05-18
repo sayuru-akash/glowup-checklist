@@ -3,8 +3,11 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { databaseConfigured, ensureSchema, upsertUser } from "@/lib/db";
+import { noStoreHeaders } from "@/lib/http";
 import { createSessionToken, sessionCookieName } from "@/lib/session";
 import type { UserProfile } from "@/lib/types";
+
+export const dynamic = "force-dynamic";
 
 const BodySchema = z.object({
   credential: z.string().min(20)
@@ -13,12 +16,12 @@ const BodySchema = z.object({
 export async function POST(request: Request) {
   const parsed = BodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ error: "Missing Google credential." }, { status: 400 });
+    return NextResponse.json({ error: "Missing Google credential." }, { status: 400, headers: noStoreHeaders });
   }
 
   const clientId = process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
   if (!clientId) {
-    return NextResponse.json({ error: "Google client ID is not configured." }, { status: 503 });
+    return NextResponse.json({ error: "Google client ID is not configured." }, { status: 503, headers: noStoreHeaders });
   }
 
   const client = new OAuth2Client(clientId);
@@ -29,7 +32,7 @@ export async function POST(request: Request) {
   const payload = ticket.getPayload();
 
   if (!payload?.sub || !payload.email) {
-    return NextResponse.json({ error: "Google profile is incomplete." }, { status: 401 });
+    return NextResponse.json({ error: "Google profile is incomplete." }, { status: 401, headers: noStoreHeaders });
   }
 
   const profile: UserProfile = {
@@ -55,5 +58,5 @@ export async function POST(request: Request) {
     maxAge: 60 * 60 * 24 * 14
   });
 
-  return NextResponse.json({ profile });
+  return NextResponse.json({ profile }, { headers: noStoreHeaders });
 }
