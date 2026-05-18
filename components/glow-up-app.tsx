@@ -525,7 +525,6 @@ export function GlowUpApp() {
       id: `custom-${Date.now()}`,
       label: newTask.trim(),
       category: "mind",
-      minutes: 5,
       completed: false
     };
     setState((current) => {

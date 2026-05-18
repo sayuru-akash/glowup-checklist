@@ -30,7 +30,6 @@ export type GlowTask = {
   label: string;
   detail?: string;
   category: "hydration" | "skin" | "movement" | "food" | "mind" | "style" | "study" | "sleep" | "social";
-  minutes: number;
   completed: boolean;
 };
 

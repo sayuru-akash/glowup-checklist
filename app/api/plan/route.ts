@@ -127,7 +127,7 @@ JSON shape:
       "focus": "2-5 words",
       "affirmation": "short sentence",
       "tasks": [
-        {"label":"specific task under 8 words","detail":"optional detail under 12 words","category":"hydration|skin|movement|food|mind|style|study|sleep|social","minutes":5}
+        {"label":"specific task under 8 words","detail":"optional detail under 12 words","category":"hydration|skin|movement|food|mind|style|study|sleep|social"}
       ]
     }
   ],
@@ -173,7 +173,6 @@ function normalizePlan(raw: Partial<WeeklyPlan> & { themeName?: string; themeVib
         label: requireString(task.label, `days.${dayIndex}.tasks.${taskIndex}.label`, 90),
         detail: typeof task.detail === "string" ? task.detail.slice(0, 90) : "",
         category: requireCategory(task.category, `days.${dayIndex}.tasks.${taskIndex}.category`),
-        minutes: typeof task.minutes === "number" ? Math.max(1, Math.min(60, Math.round(task.minutes))) : 5,
         completed: false
       }))
     };

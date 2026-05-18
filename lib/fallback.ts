@@ -4,14 +4,14 @@ import type { GlowTask, SetupAnswers, WeeklyPlan } from "@/lib/types";
 const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const categoryTasks: Array<Omit<GlowTask, "id" | "completed">> = [
-  { label: "Drink water before your first scroll", detail: "Keep a bottle visible.", category: "hydration", minutes: 2 },
-  { label: "Two-step skincare reset", detail: "Cleanse and moisturize. SPF in the morning.", category: "skin", minutes: 8 },
-  { label: "Move your body for one playlist", detail: "Walk, stretch, dance, or train.", category: "movement", minutes: 15 },
-  { label: "Add one real-food upgrade", detail: "Protein, fruit, greens, or a proper meal.", category: "food", minutes: 10 },
-  { label: "Catch one negative thought", detail: "Rewrite it like you are on your own team.", category: "mind", minutes: 4 },
-  { label: "Outfit check before leaving", detail: "Clean, comfortable, intentional.", category: "style", minutes: 5 },
-  { label: "One focused work sprint", detail: "Phone away, timer on, tiny finish line.", category: "study", minutes: 25 },
-  { label: "Sleep wind-down cue", detail: "Dim lights and close the loop.", category: "sleep", minutes: 10 }
+  { label: "Drink water before your first scroll", detail: "Keep a bottle visible.", category: "hydration" },
+  { label: "Two-step skincare reset", detail: "Cleanse and moisturize. SPF in the morning.", category: "skin" },
+  { label: "Move your body for one playlist", detail: "Walk, stretch, dance, or train.", category: "movement" },
+  { label: "Add one real-food upgrade", detail: "Protein, fruit, greens, or a proper meal.", category: "food" },
+  { label: "Catch one negative thought", detail: "Rewrite it like you are on your own team.", category: "mind" },
+  { label: "Outfit check before leaving", detail: "Clean, comfortable, intentional.", category: "style" },
+  { label: "One focused work sprint", detail: "Phone away, timer on, tiny finish line.", category: "study" },
+  { label: "Sleep wind-down cue", detail: "Dim lights and close the loop.", category: "sleep" }
 ];
 
 function rotateTasks(dayIndex: number, intensity: SetupAnswers["intensity"]) {

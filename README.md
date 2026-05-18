@@ -7,6 +7,7 @@
 [![Neon](https://img.shields.io/badge/Postgres-Neon-00e699)](https://neon.tech/)
 [![Backblaze B2](https://img.shields.io/badge/Images-Backblaze_B2-dc2626)](https://www.backblaze.com/cloud-storage)
 [![Google AI](https://img.shields.io/badge/AI-Google_AI-4285f4)](https://ai.google.dev/)
+[![License: GPL v3 or later](https://img.shields.io/badge/License-GPL--3.0--or--later-blue.svg)](LICENSE)
 
 GlowUp Checklist is an AI-backed weekly glow-up planner that turns a short personal setup flow into an editable seven-day checklist, a dynamic theme system, and generated visual artwork. It uses real Google sign-in, real Postgres persistence, real Google AI plan/image generation, and real Backblaze B2 image storage.
 
@@ -345,9 +346,17 @@ docs/
 - The UI uses a light glassmorphism system with real generated background art behind translucent panels.
 - Theme colors, display font, body font, handwriting font, motifs, and icon style come from the AI plan response.
 - Buttons and task cards are designed to wrap instead of overflow.
-- Task card minute controls are intentionally hidden from the UI to keep the checklist clean.
+- Tasks stay clean and action-focused: label, optional detail, category icon, and completion state.
 - The share action copies a social-ready post, not only the mantra.
 
 ## License
 
-This is a private product repository. Do not publish secrets, Backblaze keys, database URLs, or Google AI keys.
+GlowUp Checklist is licensed under the **GNU General Public License v3.0 or later**.
+
+See [LICENSE](LICENSE) for the full GPLv3 text. The SPDX identifier for this project is:
+
+```text
+GPL-3.0-or-later
+```
+
+The license covers the source code in this repository. It does not grant permission to publish, reuse, or expose private credentials, API keys, database URLs, Backblaze application keys, generated user data, or deployment secrets.
