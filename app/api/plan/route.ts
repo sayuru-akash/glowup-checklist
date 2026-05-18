@@ -7,23 +7,23 @@ export const dynamic = "force-dynamic";
 
 const BodySchema = z.object({
   vibe: z.enum(["soft-pop", "clean-reset", "main-character", "study-core", "power-mode"]),
-  ageRange: z.string().max(80).default(""),
-  persona: z.string().max(180).default(""),
-  visualIdentity: z.string().max(240).default(""),
-  artStyle: z.string().max(120).default(""),
-  currentFocus: z.string().max(160).default(""),
-  schedule: z.string().max(160).default(""),
-  energy: z.string().max(160).default(""),
-  style: z.string().max(160).default(""),
-  blockers: z.string().max(220).default(""),
-  weeklyWin: z.string().max(180).default(""),
+  ageRange: answerText(240),
+  persona: answerText(1200),
+  visualIdentity: answerText(1200),
+  artStyle: answerText(500),
+  currentFocus: answerText(800),
+  schedule: answerText(800),
+  energy: answerText(400),
+  style: answerText(500),
+  blockers: answerText(800),
+  weeklyWin: answerText(800),
   intensity: z.enum(["soft", "balanced", "ambitious"]).default("balanced")
 });
 
 export async function POST(request: Request) {
   const parsed = BodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ error: "Setup answers are incomplete." }, { status: 400, headers: noStoreHeaders });
+    return NextResponse.json({ error: formatSetupValidationError(parsed.error) }, { status: 400, headers: noStoreHeaders });
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
@@ -74,6 +74,16 @@ export async function POST(request: Request) {
       { status: 502, headers: noStoreHeaders }
     );
   }
+}
+
+function answerText(maxLength: number) {
+  return z.preprocess((value) => (value == null ? "" : String(value)), z.string().trim().max(maxLength)).default("");
+}
+
+function formatSetupValidationError(error: z.ZodError) {
+  const fields = Array.from(new Set(error.issues.map((issue) => issue.path.join(".")).filter(Boolean)));
+  if (!fields.length) return "Setup answers could not be read. Refresh once and try again.";
+  return `Setup answers need a quick check: ${fields.join(", ")}.`;
 }
 
 function buildPlannerPrompt(input: z.infer<typeof BodySchema>) {

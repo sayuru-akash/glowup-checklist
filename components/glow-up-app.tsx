@@ -52,6 +52,18 @@ type AppConfig = {
   previewAuthEnabled: boolean;
 };
 
+const answerLimits: Partial<Record<keyof SetupAnswers, number>> = {
+  persona: 1200,
+  visualIdentity: 1200,
+  artStyle: 500,
+  currentFocus: 800,
+  schedule: 800,
+  energy: 400,
+  style: 500,
+  blockers: 800,
+  weeklyWin: 800
+};
+
 const questionSteps = [
   {
     key: "vibe",
@@ -1073,10 +1085,17 @@ function SetupWizard({
 }) {
   const current = questionSteps[step];
   const isLast = step === questionSteps.length - 1;
+  const currentLimit = answerLimits[current.key as keyof SetupAnswers];
+  const currentTextValue = String(answers[current.key as keyof SetupAnswers] ?? "");
 
   function next() {
     if (isLast) onGenerate();
     else setStep(step + 1);
+  }
+
+  function updateTextAnswer(value: string) {
+    const nextValue = currentLimit ? value.slice(0, currentLimit) : value;
+    setAnswers({ ...answers, [current.key]: nextValue });
   }
 
   return (
@@ -1138,13 +1157,24 @@ function SetupWizard({
             ))}
           </div>
         ) : (
-          <textarea
-            value={answers[current.key as keyof SetupAnswers] as string}
-            onChange={(event) => setAnswers({ ...answers, [current.key]: event.target.value })}
-            placeholder={"placeholder" in current ? current.placeholder : undefined}
-            aria-label={current.title}
-            rows={5}
-          />
+          <div className="answer-field">
+            <textarea
+              value={currentTextValue}
+              onChange={(event) => updateTextAnswer(event.target.value)}
+              placeholder={"placeholder" in current ? current.placeholder : undefined}
+              aria-label={current.title}
+              rows={5}
+              maxLength={currentLimit}
+            />
+            {currentLimit ? (
+              <div className="answer-meter" aria-live="polite">
+                <span>{currentTextValue.length >= currentLimit ? "Limit reached" : "Keep it detailed, but focused"}</span>
+                <strong>
+                  {currentTextValue.length}/{currentLimit}
+                </strong>
+              </div>
+            ) : null}
+          </div>
         )}
 
         {generationError ? (

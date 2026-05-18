@@ -527,10 +527,15 @@ select:focus-visible {
   background: var(--accent);
 }
 
+.answer-field {
+  display: grid;
+  gap: 10px;
+  margin-top: 22px;
+}
+
 .wizard-card textarea {
   width: 100%;
   min-height: 150px;
-  margin-top: 22px;
   resize: vertical;
   border: 1px solid var(--border);
   border-radius: 22px;
@@ -540,6 +545,22 @@ select:focus-visible {
   color: var(--ink);
   font-size: 1rem;
   line-height: 1.55;
+}
+
+.answer-meter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.answer-meter strong {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .wizard-card textarea:focus,
